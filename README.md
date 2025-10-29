@@ -77,8 +77,47 @@ pip install -r requirements.txt
 
 ## Konfiguracja
 
-1. Skopiuj `.env.example` do `.env`
-2. Uzupełnij klucze API
+### ⚠️ WAŻNE: Konfiguracja Azure OpenAI
+
+1. **Skopiuj plik konfiguracyjny**:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Edytuj `.env` i uzupełnij swoje dane**:
+   ```bash
+   AZURE_OPENAI_API_KEY=twój_klucz_api_tutaj
+   AZURE_OPENAI_ENDPOINT=https://twoja-nazwa-zasobu.openai.azure.com/
+   AZURE_OPENAI_API_VERSION=2024-12-01-preview
+   AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4.1  # Model domyślny (fallback)
+   ```
+
+3. **💡 Wybór modeli w aplikacji**:
+   
+   Aplikacja pozwala **dynamicznie wybierać modele** w interfejsie Streamlit:
+   
+   - **ETAP 1** (Walidacja): Wybierz model do walidacji 68 parametrów WYMÓG
+   - **ETAP 2** (Ranking): Wybierz model do rankingu 19 parametrów JAKOŚĆ
+   
+   Dostępne modele:
+   - ✅ **gpt-4.1** (rekomendowany) - najlepsza jakość + szybkość
+   - ⚡ **gpt-4.1-nano** - szybszy, nieco niższa jakość
+   - ⚡ **o4-mini** - szybki, średnia jakość
+   - 🐢 **o1** - wolny (137s), bardzo dokładny
+   - 🧪 **gpt-5-mini**, **gpt-5-nano** - eksperymentalne (mogą mieć problemy z JSON)
+
+4. **Sprawdź czy `.env` jest w `.gitignore`** (zabezpieczenie przed wyciekiem kluczy):
+   ```bash
+   # Plik .env NIE POWINIEN być w repozytorium!
+   # Jest już dodany do .gitignore
+   ```
+
+### 🔐 Bezpieczeństwo
+
+- ✅ **NIGDY** nie commituj pliku `.env` do repozytorium
+- ✅ Używaj `.env.example` jako template (bez prawdziwych kluczy)
+- ✅ Rotuj klucze API regularnie
+- ✅ Używaj osobnych kluczy dla dev/prod
 
 ## Użycie
 
