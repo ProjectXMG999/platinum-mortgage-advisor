@@ -7,10 +7,17 @@ import json
 import sys
 import os
 
-# Dodaj src do ścieżki
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+# Dodaj src do ścieżki (kompatybilność z lokalnym i Streamlit Cloud)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_path = os.path.join(current_dir, 'src')
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
-from src.query_engine import QueryEngine
+# Import z pełną ścieżką dla pewności
+try:
+    from query_engine import QueryEngine
+except ImportError:
+    from src.query_engine import QueryEngine
 
 # Lista banków
 banks = [
