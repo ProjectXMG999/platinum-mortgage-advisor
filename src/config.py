@@ -4,16 +4,23 @@ Konfiguracja aplikacji - klucze API i ustawienia
 import os
 from dotenv import load_dotenv
 
-# Załaduj zmienne środowiskowe z pliku .env
+# Załaduj zmienne środowiskowe z pliku .env (lokalnie)
 load_dotenv()
 
-# Azure OpenAI Configuration (pobierane z .env)
-AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
-AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
-
-# Model domyślny (fallback) - użytkownik może wybrać inny w UI Streamlit
-AZURE_OPENAI_DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4.1")
+# Sprawdź czy działa w Streamlit Cloud (st.secrets) czy lokalnie (.env)
+try:
+    import streamlit as st
+    # Streamlit Cloud - użyj st.secrets
+    AZURE_OPENAI_API_KEY = st.secrets.get("AZURE_OPENAI_API_KEY")
+    AZURE_OPENAI_ENDPOINT = st.secrets.get("AZURE_OPENAI_ENDPOINT")
+    AZURE_OPENAI_API_VERSION = st.secrets.get("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+    AZURE_OPENAI_DEPLOYMENT_NAME = st.secrets.get("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4.1")
+except (ImportError, FileNotFoundError):
+    # Lokalne środowisko - użyj .env
+    AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+    AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+    AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+    AZURE_OPENAI_DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4.1")
 
 # Walidacja wymaganych zmiennych środowiskowych
 if not AZURE_OPENAI_API_KEY:
