@@ -1,0 +1,402 @@
+{
+  "metadata": {
+    "description": "Konfiguracja systemu punktacji (scoring) dla matching engine",
+    "version": "1.0",
+    "date_created": "2025-10-27",
+    "last_updated": "2025-10-27"
+  },
+  
+  "default_weights": {
+    "description": "Domyślne wagi dla standardowego klienta",
+    "koszt_kredytu": 35,
+    "elastyczność": 25,
+    "wygoda_procesu": 20,
+    "dodatkowe_korzyści": 15,
+    "parametry_max": 5,
+    "total": 100
+  },
+  
+  "segment_weights": {
+    "description": "Wagi dla różnych segmentów klientów",
+    "note": "System automatycznie rozpoznaje segment na podstawie profilu",
+    
+    "investor": {
+      "name": "Inwestor / Developer",
+      "criteria": "existing_mortgages > 0 OR loan_amount > 2M OR multiple_properties",
+      "weights": {
+        "koszt_kredytu": 30,
+        "elastyczność": 40,
+        "wygoda_procesu": 15,
+        "dodatkowe_korzyści": 10,
+        "parametry_max": 5
+      },
+      "rationale": "Inwestorzy priorytetowo traktują elastyczność (karencja, okresy) nad kosztem"
+    },
+    
+    "young_family": {
+      "name": "Młoda Rodzina",
+      "criteria": "age < 35 AND number_of_children > 0 AND first_mortgage",
+      "weights": {
+        "koszt_kredytu": 50,
+        "elastyczność": 25,
+        "wygoda_procesu": 15,
+        "dodatkowe_korzyści": 5,
+        "parametry_max": 5
+      },
+      "rationale": "Młode rodziny maksymalizują oszczędności - koszt najważniejszy"
+    },
+    
+    "senior": {
+      "name": "Senior (60+)",
+      "criteria": "age >= 60",
+      "weights": {
+        "koszt_kredytu": 25,
+        "elastyczność": 20,
+        "wygoda_procesu": 35,
+        "dodatkowe_korzyści": 15,
+        "parametry_max": 5
+      },
+      "rationale": "Seniorzy cenią wygodę procesu i szybkość decyzji"
+    },
+    
+    "high_earner": {
+      "name": "Wysoki Dochód",
+      "criteria": "monthly_gross > 25000 AND own_contribution_pct > 30",
+      "weights": {
+        "koszt_kredytu": 25,
+        "elastyczność": 30,
+        "wygoda_procesu": 30,
+        "dodatkowe_korzyści": 10,
+        "parametry_max": 5
+      },
+      "rationale": "Wysokie dochody - priorytet to czas i komfort, nie koszt"
+    },
+    
+    "first_time_buyer": {
+      "name": "Pierwszy Kredyt",
+      "criteria": "existing_mortgages == 0 AND age < 40",
+      "weights": {
+        "koszt_kredytu": 45,
+        "elastyczność": 25,
+        "wygoda_procesu": 20,
+        "dodatkowe_korzyści": 5,
+        "parametry_max": 5
+      },
+      "rationale": "Pierwszy kredyt - ważny każdy grosz oszczędności"
+    }
+  },
+  
+  "scoring_breakdown": {
+    "description": "Szczegółowy breakdown punktacji dla każdej kategorii",
+    
+    "koszt_kredytu": {
+      "max_points": 35,
+      "subcategories": {
+        "wibor_type": {
+          "points": 10,
+          "scoring": {
+            "WIBOR 3M": 10,
+            "WIBOR 6M": 7,
+            "WIBOR 1M": 6,
+            "inne": 5
+          },
+          "rationale": "WIBOR 3M to standard rynkowy - najbardziej przewidywalny"
+        },
+        "kredyt_eko": {
+          "points": 10,
+          "scoring": {
+            "obniżka 0.2 p.p.": 10,
+            "obniżka 0.1 p.p.": 5,
+            "obniżka 0.05 p.p.": 3,
+            "brak": 0
+          },
+          "rationale": "Kredyt EKO może obniżyć koszty o dziesiątki tysięcy złotych"
+        },
+        "wcześniejsza_spłata": {
+          "points": 5,
+          "scoring": {
+            "0%": 5,
+            "1%": 3,
+            "2%": 1,
+            "3%": 0
+          },
+          "rationale": "Brak opłat za wcześniejszą spłatę = elastyczność refinansowania"
+        },
+        "ubezpieczenia": {
+          "points": 10,
+          "subcategories": {
+            "ubezpieczenie_na_życie": {
+              "brak wymogu": 5,
+              "opcjonalne bez wpływu na marżę": 3,
+              "obniżka marży przy zakupie": 2,
+              "podwyżka marży przy braku": 0
+            },
+            "ubezpieczenie_niskiego_wkładu": {
+              "brak (przy wkładzie <20%)": 5,
+              "0.2%": 3,
+              "0.25%": 1,
+              "wyższe": 0
+            }
+          }
+        }
+      }
+    },
+    
+    "elastyczność": {
+      "max_points": 25,
+      "subcategories": {
+        "okres_kredytowania": {
+          "points": 10,
+          "scoring": {
+            "420 mc (35 lat)": 10,
+            "360 mc (30 lat)": 7,
+            "300 mc (25 lat)": 4,
+            "poniżej 300 mc": 2
+          },
+          "rationale": "Dłuższy okres = niższa rata = większa elastyczność"
+        },
+        "karencja": {
+          "points": 8,
+          "scoring": {
+            "60 mc": 8,
+            "24 mc": 6,
+            "12 mc": 4,
+            "brak": 0
+          },
+          "rationale": "Karencja krytyczna przy budowie domu"
+        },
+        "typ_rat": {
+          "points": 4,
+          "scoring": {
+            "równe lub malejące": 4,
+            "tylko równe": 2,
+            "tylko malejące": 1
+          },
+          "rationale": "Wybór typu rat = dostosowanie do sytuacji finansowej"
+        },
+        "oprocentowanie_stałe": {
+          "points": 3,
+          "scoring": {
+            "10 lat": 3,
+            "5 lat": 2,
+            "brak": 0
+          },
+          "rationale": "Stałe oprocentowanie = przewidywalność kosztów"
+        }
+      }
+    },
+    
+    "wygoda_procesu": {
+      "max_points": 20,
+      "subcategories": {
+        "koszt_operatu": {
+          "points": 10,
+          "scoring_formula": "max(0, 10 - (cost - 400) / 100)",
+          "ranges": {
+            "200-400 zł": 10,
+            "400-600 zł": 7,
+            "600-800 zł": 4,
+            "800-1000 zł": 2,
+            "powyżej 1000 zł": 0
+          },
+          "rationale": "Bezpośredni koszt dla klienta na starcie procesu"
+        },
+        "terminy_ważności_dokumentów": {
+          "points": 5,
+          "subcategories": {
+            "zaświadczenie_o_zarobkach": {
+              "60+ dni": 3,
+              "30-59 dni": 2,
+              "poniżej 30 dni": 1
+            },
+            "ważność_decyzji": {
+              "60+ dni": 2,
+              "45-59 dni": 1,
+              "poniżej 45 dni": 0
+            }
+          },
+          "rationale": "Dłuższe terminy = mniej stresu i pośpiechu"
+        },
+        "typ_operatu": {
+          "points": 5,
+          "scoring": {
+            "wewnętrzny": 5,
+            "zewnętrzny lub wewnętrzny": 3,
+            "tylko zewnętrzny": 2
+          },
+          "rationale": "Operat wewnętrzny = szybszy proces"
+        }
+      }
+    },
+    
+    "dodatkowe_korzyści": {
+      "max_points": 15,
+      "subcategories": {
+        "kredyt_eko_dostępność": {
+          "points": 5,
+          "scoring": {
+            "tak z obniżką marży": 5,
+            "tak bez obniżki": 3,
+            "brak": 0
+          }
+        },
+        "ubezpieczenie_nieruchomości": {
+          "points": 5,
+          "scoring": {
+            "dostępne z obniżką marży": 5,
+            "dostępne bez wpływu na marżę": 3,
+            "brak w ofercie": 0
+          },
+          "rationale": "Pakiet ubezpieczeniowy w jednym miejscu = wygoda"
+        },
+        "limit_kredytów_hipotecznych": {
+          "points": 5,
+          "scoring": {
+            "brak limitu": 5,
+            "3-4 kredyty": 3,
+            "2 kredyty": 1,
+            "1 kredyt": 0
+          },
+          "rationale": "Ważne dla inwestorów i planujących rozwój"
+        }
+      }
+    },
+    
+    "parametry_max": {
+      "max_points": 5,
+      "subcategories": {
+        "maksymalna_kwota": {
+          "points": 3,
+          "scoring": {
+            "4M+ zł": 3,
+            "3-4M zł": 2,
+            "poniżej 3M": 1
+          }
+        },
+        "wielkość_działki": {
+          "points": 2,
+          "scoring": {
+            "brak limitu lub 2 ha": 2,
+            "3000 m2": 1,
+            "poniżej 3000 m2": 0
+          }
+        }
+      }
+    }
+  },
+  
+  "special_bonuses": {
+    "description": "Dodatkowe punkty za specjalne sytuacje",
+    
+    "nietypowy_cel": {
+      "condition": "purpose IN ['kamienica', 'TBS', 'zakup udziału']",
+      "bonus": 5,
+      "rationale": "Bonus za akceptację nietypowego celu - mało banków finansuje"
+    },
+    
+    "szybka_decyzja": {
+      "condition": "decision_time <= 3 dni",
+      "bonus": 3,
+      "rationale": "Ekspresowa decyzja kredytowa"
+    },
+    
+    "niski_wkład_bez_ubezpieczenia": {
+      "condition": "own_contribution_pct < 20 AND low_contribution_insurance == 'brak'",
+      "bonus": 10,
+      "rationale": "Rzadkość - niski wkład bez dodatkowych kosztów"
+    },
+    
+    "senior_friendly": {
+      "condition": "age > 60 AND max_age >= 75",
+      "bonus": 5,
+      "rationale": "Bank przyjazny seniorom"
+    }
+  },
+  
+  "penalties": {
+    "description": "Kary punktowe za niekorzystne warunki",
+    
+    "wysokie_ubezpieczenie_pomostowe": {
+      "condition": "bridge_insurance > 1.0%",
+      "penalty": -5,
+      "rationale": "Bardzo wysokie ubezpieczenie pomostowe"
+    },
+    
+    "krótkie_terminy_dokumentów": {
+      "condition": "avg_document_validity < 30 dni",
+      "penalty": -3,
+      "rationale": "Stres i pośpiech z dokumentami"
+    },
+    
+    "ograniczona_elastyczność": {
+      "condition": "early_repayment_fee >= 3% OR max_period < 300 mc",
+      "penalty": -5,
+      "rationale": "Brak elastyczności spłaty"
+    }
+  },
+  
+  "calculation_examples": {
+    "description": "Przykłady obliczania punktacji",
+    
+    "example_1": {
+      "bank": "Alior Bank",
+      "client_profile": "Profil #1 - Zakup kamienicy",
+      "calculation": {
+        "koszt_kredytu": {
+          "wibor": 10,
+          "kredyt_eko": 5,
+          "wcześniejsza_spłata": 5,
+          "ubezpieczenia": 7,
+          "subtotal": 27
+        },
+        "elastyczność": {
+          "okres": 10,
+          "karencja": 6,
+          "raty": 4,
+          "oprocentowanie_stałe": 2,
+          "subtotal": 22
+        },
+        "wygoda_procesu": {
+          "operat": 7,
+          "dokumenty": 2,
+          "typ_operatu": 5,
+          "subtotal": 14
+        },
+        "dodatkowe_korzyści": {
+          "kredyt_eko": 5,
+          "ubezpieczenie": 3,
+          "limity": 3,
+          "subtotal": 11
+        },
+        "parametry_max": {
+          "kwota": 2,
+          "działka": 1,
+          "subtotal": 3
+        },
+        "bonusy": {
+          "nietypowy_cel": 5
+        },
+        "total": 82,
+        "grade": "A"
+      }
+    }
+  },
+  
+  "tuning_notes": {
+    "description": "Notatki do dostrajania systemu",
+    "recommendations": [
+      "Monitoruj akceptację klientów - jeśli niezadowoleni z kosztów, zwiększ wagę 'koszt_kredytu'",
+      "Śledź NPS po wyborze banku - jeśli problemy z procesem, zwiększ wagę 'wygoda_procesu'",
+      "Zbieraj feedback po 6 miesiącach - czy klienci żałują wyborów?",
+      "A/B testuj różne wagi dla segmentów - optymalizuj conversion rate"
+    ],
+    "kpis": {
+      "acceptance_rate": "% klientów akceptujących rekomendację #1",
+      "target": ">80%",
+      "alternative_selection": "% wybierających #2 lub #3",
+      "target_alternative": "15-20%",
+      "nps_after_6_months": "Net Promoter Score po półroczu",
+      "target_nps": ">50"
+    }
+  }
+}

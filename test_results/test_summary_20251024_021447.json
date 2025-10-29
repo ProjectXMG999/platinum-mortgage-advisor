@@ -1,0 +1,78 @@
+{
+  "timestamp": "20251024_021447",
+  "total_profiles": 10,
+  "successful": 10,
+  "failed": 0,
+  "results": [
+    {
+      "profile_id": 1,
+      "category": "Zakup kamienicy - cel mieszkaniowy",
+      "name": "Marek Kamiński",
+      "status": "SUCCESS",
+      "filename": "profile_01_Zakup_kamienicy___cel_mieszkaniowy_20251024_021447.md"
+    },
+    {
+      "profile_id": 2,
+      "category": "Zakup kamienicy z lokalem użytkowym",
+      "name": "Anna Kowalczyk",
+      "status": "SUCCESS",
+      "filename": "profile_02_Zakup_kamienicy_z_lokalem_użytkowym_20251024_021447.md"
+    },
+    {
+      "profile_id": 3,
+      "category": "Zakup lokalu użytkowego - mały",
+      "name": "Piotr Zieliński",
+      "status": "SUCCESS",
+      "filename": "profile_03_Zakup_lokalu_użytkowego___mały_20251024_021447.md"
+    },
+    {
+      "profile_id": 4,
+      "category": "Zakup udziału w nieruchomości",
+      "name": "Katarzyna Nowak",
+      "status": "SUCCESS",
+      "filename": "profile_04_Zakup_udziału_w_nieruchomości_20251024_021447.md"
+    },
+    {
+      "profile_id": 5,
+      "category": "Zakup udziału w nieruchomości + zabezpieczenie całości",
+      "name": "Tomasz Wiśniewski",
+      "status": "SUCCESS",
+      "filename": "profile_05_Zakup_udziału_w_nieruchomości_+_zabezpieczenie_całości_20251024_021447.md"
+    },
+    {
+      "profile_id": 6,
+      "category": "Refinansowanie wydatków - budowa (18 miesięcy)",
+      "name": "Łukasz Kowalski",
+      "status": "SUCCESS",
+      "filename": "profile_06_Refinansowanie_wydatków___budowa_(18_miesięcy)_20251024_021447.md"
+    },
+    {
+      "profile_id": 7,
+      "category": "Refinansowanie zakupu (12 miesięcy)",
+      "name": "Monika Lewandowska",
+      "status": "SUCCESS",
+      "filename": "profile_07_Refinansowanie_zakupu_(12_miesięcy)_20251024_021447.md"
+    },
+    {
+      "profile_id": 8,
+      "category": "Konsolidacja zobowiązań niemieszkaniowych",
+      "name": "Grzegorz Dąbrowski",
+      "status": "SUCCESS",
+      "filename": "profile_08_Konsolidacja_zobowiązań_niemieszkaniowych_20251024_021447.md"
+    },
+    {
+      "profile_id": 9,
+      "category": "Pożyczka hipoteczna - cel dowolny",
+      "name": "Agnieszka Woźniak",
+      "status": "SUCCESS",
+      "filename": "profile_09_Pożyczka_hipoteczna___cel_dowolny_20251024_021447.md"
+    },
+    {
+      "profile_id": 10,
+      "category": "Zakup działki rolnej pod zabudowę",
+      "name": "Paweł Szymański",
+      "status": "SUCCESS",
+      "filename": "profile_10_Zakup_działki_rolnej_pod_zabudowę_20251024_021447.md"
+    }
+  ]
+}

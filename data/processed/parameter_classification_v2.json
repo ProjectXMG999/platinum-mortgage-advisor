@@ -1,0 +1,380 @@
+{
+  "metadata": {
+    "description": "Kategoryzacja wszystkich parametrów bankowych z podziałem na WYMÓG (kwalifikacja klienta) i JAKOŚĆ (warunki oferty)",
+    "date_created": "2025-10-24",
+    "banks_analyzed": 11,
+    "total_parameter_groups": 8,
+    "methodology": "Analiza wszystkich banków w knowledge_base.json pod kątem kategoryzacji każdego parametru jako WYMÓG lub JAKOŚĆ oraz zebranie wszystkich możliwych opcji/odpowiedzi"
+  },
+  "definitions": {
+    "WYMÓG": {
+      "description": "Parametry decydujące o KWALIFIKACJI klienta do otrzymania kredytu",
+      "impact": "Jeśli klient nie spełnia wymogu, bank odrzuci wniosek lub nie będzie mógł sfinansować danego celu",
+      "examples": ["wiek klienta", "minimalny staż pracy", "LTV (określa minimalny wkład własny)", "akceptacja celu kredytu", "limity kredytów hipotecznych"]
+    },
+    "JAKOŚĆ": {
+      "description": "Parametry określające WARUNKI OFERTY bankowej",
+      "impact": "Klient może otrzymać kredyt, ale parametry te wpływają na atrakcyjność oferty (koszt, elastyczność, dodatkowe korzyści)",
+      "examples": ["kwota kredytu", "okres kredytowania", "stawka WIBOR", "opłaty za wcześniejszą spłatę", "koszt operatu", "ubezpieczenia"]
+    }
+  },
+  "classification_by_group": {
+    "01_parametry_kredytu": {
+      "group_category": "MIESZANA",
+      "group_description": "Grupa zawiera zarówno parametry JAKOŚĆ (większość) jak i WYMÓG (LTV, wkład własny, limity)",
+      "parameters": {
+        "udzoz": {
+          "type": "JAKOŚĆ",
+          "rationale": "Wybór waluty to element oferty - nie wyklucza klienta, ale określa dostępne opcje",
+          "unique_values": ["PLN", "PLN + EUR", "PLN + EUR + NOK + SEK"],
+          "banks_count": 11
+        },
+        "02_kwota_kredytu": {
+          "type": "JAKOŚĆ",
+          "rationale": "Limity kwotowe określają zakres finansowania - nie dyskwalifikują klienta, jeśli mieści się w zakresie",
+          "value_range": "10,000 zł - 30,000,000 zł",
+          "typical_minimum": "100,000 zł",
+          "typical_maximum": "3,000,000 - 4,000,000 zł"
+        },
+        "03_okres_kredytowania": {
+          "type": "JAKOŚĆ",
+          "rationale": "Maksymalny okres spłaty wpływa na wysokość raty - element elastyczności oferty",
+          "unique_values": ["72-420 mc", "300 mc", "360 mc", "420 mc"],
+          "most_common": "360-420 miesięcy"
+        },
+        "04_LTV_kredyt": {
+          "type": "WYMÓG",
+          "rationale": "LTV określa minimalny wkład własny - KWALIFIKUJE klienta (czy ma wystarczający wkład)",
+          "unique_values": ["70%", "80%", "87-90%", "90%"],
+          "note": "Im wyższe LTV, tym mniejszy wymóg wkładu własnego"
+        },
+        "08_wkład_własny": {
+          "type": "WYMÓG",
+          "rationale": "Minimalny wkład własny to wymóg kwalifikujący - klient musi go posiadać",
+          "unique_values": ["10%", "16%", "20%"],
+          "most_common": "20%",
+          "exceptions": "10% przy dodatkowych zabezpieczeniach"
+        },
+        "09_WIBOR": {
+          "type": "JAKOŚĆ",
+          "rationale": "Referencyjna stawka procentowa wpływa na oprocentowanie - element kosztowy oferty",
+          "unique_values": ["WIBOR 1M", "WIBOR 3M", "WIBOR 6M"]
+        },
+        "10_oprocentowanie_stałe": {
+          "type": "JAKOŚĆ",
+          "rationale": "Okres oprocentowania stałego to korzyść dla klienta - stabilność oferty",
+          "unique_values": ["5 lat", "5 lub 10 lat"],
+          "most_common": "5 lat"
+        },
+        "11_wcześniejsza_spłata": {
+          "type": "JAKOŚĆ",
+          "rationale": "Opłata za wcześniejszą spłatę określa elastyczność oferty - nie wyklucza klienta",
+          "unique_values": ["0%", "1%", "2%", "3%"],
+          "trend": "Większość banków: 0% dla zmiennego i stałego"
+        },
+        "12_raty": {
+          "type": "JAKOŚĆ",
+          "rationale": "Dostępne typy rat to element elastyczności spłaty",
+          "unique_values": ["tylko równe", "równe lub malejące"]
+        },
+        "13_karencja": {
+          "type": "JAKOŚĆ",
+          "rationale": "Okres karencji to dodatkowa elastyczność - nie jest wymagana",
+          "range": "0-60 miesięcy",
+          "typical": "12-24 miesiące dla budowy"
+        },
+        "14_ile_kredytów_hipotecznych": {
+          "type": "WYMÓG",
+          "rationale": "Limit kredytów hipotecznych KWALIFIKUJE klienta - przekroczenie limitu = odrzucenie",
+          "unique_values": ["brak limitu", "2 kredyty", "3-4 kredyty", "indywidualne"]
+        },
+        "15_wielkość_działki": {
+          "type": "WYMÓG",
+          "rationale": "Maksymalna powierzchnia działki to wymóg - przekroczenie = brak finansowania",
+          "unique_values": ["2999 m2", "3000 m2", "10000 m2", "0,9999 ha", "2 ha", "brak limitu"]
+        },
+        "16_kredyt_EKO": {
+          "type": "JAKOŚĆ",
+          "rationale": "Oferta kredytu ekologicznego to dodatkowa korzyść cenowa - nie jest wymagana",
+          "unique_values": ["brak", "obniżka 0,05-0,2 p.p."],
+          "condition": "Wymaga spełnienia norm energetycznych EP"
+        }
+      }
+    },
+    "02_kredytobiorca": {
+      "group_category": "WYMÓG",
+      "group_description": "WSZYSTKIE parametry w tej grupie dotyczą kwalifikacji osobowej klienta",
+      "parameters": {
+        "01_wiek_klienta": {
+          "type": "WYMÓG",
+          "rationale": "Limity wiekowe KWALIFIKUJĄ klienta - poza zakresem = odrzucenie wniosku",
+          "age_range": {
+            "minimum": "18-21 lat",
+            "maximum": "60-80 lat (zależnie od płci i typu rat)"
+          },
+          "most_restrictive": "18-60 lat (kobieta), 18-65 lat (mężczyzna) - VELO",
+          "least_restrictive": "18-80 lat - PKO BP, Alior"
+        },
+        "02_max_liczba_wnioskodawców": {
+          "type": "WYMÓG",
+          "rationale": "Limit kredytobiorców KWALIFIKUJE - przekroczenie = niemożliwe złożenie wniosku",
+          "unique_values": ["2", "4", "6", "bez limitu"],
+          "note": "Często z limitem gospodarstw domowych (2-3)"
+        },
+        "03_związek_nieformalny": {
+          "type": "WYMÓG",
+          "rationale": "Traktowanie związku nieformalnego wpływa na obliczenie zdolności kredytowej - KWALIFIKACJA",
+          "options": ["jako jedno gospodarstwo", "jako dwa gospodarstwa"],
+          "conditions": "Zazwyczaj wymaga wspólnego adresu zamieszkania"
+        },
+        "04_ksero_dowodu": {
+          "type": "WYMÓG",
+          "rationale": "Wymóg formalny - bez dokumentu nie można złożyć wniosku",
+          "unique_values": ["tak", "nie"]
+        },
+        "05_wszyscy_właściciele": {
+          "type": "WYMÓG",
+          "rationale": "Wymóg przystąpienia właścicieli KWALIFIKUJE nieruchomość jako zabezpieczenie",
+          "options": ["tak", "nie (wymaga zgody/poręczenia)", "zależnie od celu"],
+          "exceptions": "Kredyt na remont/modernizację"
+        },
+        "06_rozdzielność_majątkowa": {
+          "type": "WYMÓG",
+          "rationale": "Wymóg uprawomocnienia rozdzielności - KWALIFIKACJA prawna",
+          "standard": "Po uprawomocnieniu (wszystkie banki)"
+        },
+        "07_cudzoziemiec": {
+          "type": "WYMÓG",
+          "rationale": "Wymagania dla cudzoziemców określają KWALIFIKACJĘ do ubiegania się o kredyt",
+          "options": ["brak oferty", "karta stałego pobytu", "karta pobytu 6-12 mc", "brak wymogu karty"],
+          "typical": "Karta pobytu ważna minimum 12 miesięcy"
+        }
+      }
+    },
+    "03_źródło_dochodu": {
+      "group_category": "WYMÓG",
+      "group_description": "WSZYSTKIE parametry dotyczą kwalifikacji finansowej klienta - czy dochód jest akceptowalny",
+      "summary": {
+        "total_parameters": 20,
+        "all_are_requirements": true,
+        "rationale": "Każdy rodzaj dochodu ma określone minimalne wymagania (staż, okresy, warunki). Niespełnienie = dochód nieakceptowalny = brak zdolności kredytowej"
+      },
+      "parameter_examples": {
+        "umowa_o_pracę_czas_określony": {
+          "type": "WYMÓG",
+          "min_staż": "1-6 miesięcy",
+          "okres_do_przodu": "3-12 miesięcy",
+          "varies_by_bank": true
+        },
+        "umowa_o_pracę_czas_nieokreślony": {
+          "type": "WYMÓG",
+          "min_staż": "1-6 miesięcy",
+          "most_common": "3 miesiące"
+        },
+        "działalność_gospodarcza": {
+          "type": "WYMÓG",
+          "min_okres": "12-24 miesiące",
+          "samozatrudnienie": "3-6 miesięcy z warunkami",
+          "note": "Każda forma rozliczenia (pełna księgowość, KPiR, ryczałt, karta) ma własne wymagania"
+        },
+        "urlop_macierzyński": {
+          "type": "WYMÓG",
+          "acceptance": ["tak", "nie", "z warunkami"],
+          "typical_condition": "Nie może być jedynym źródłem dochodu"
+        },
+        "dochód_w_obcej_walucie": {
+          "type": "WYMÓG",
+          "acceptance": "Większość banków: nie akceptuje lub tylko jako dodatkowy",
+          "exceptions": "Pekao: akceptuje EUR, SEK, NOK z warunkami"
+        },
+        "800_plus": {
+          "type": "WYMÓG",
+          "options": ["nie akceptuje", "pomniejsza koszty", "jako dochód dodatkowy"],
+          "trend": "Od 2025: Millennium przestało akceptować"
+        }
+      }
+    },
+    "04_cel_kredytu": {
+      "group_category": "WYMÓG",
+      "group_description": "WSZYSTKIE parametry określają czy bank finansuje dany cel - to kwalifikacja celu kredytu",
+      "summary": {
+        "total_parameters": 24,
+        "all_are_requirements": true,
+        "rationale": "Każdy cel kredytu jest albo akceptowany albo nie. Brak akceptacji = niemożliwe finansowanie = dyskwalifikacja"
+      },
+      "parameter_examples": {
+        "zakup_mieszkania_domu": {
+          "type": "WYMÓG",
+          "acceptance": "Wszystkie banki: TAK",
+          "conditions": "Niektóre banki wymagają 90% zaawansowania na rynku pierwotnym"
+        },
+        "budowa_domu": {
+          "type": "WYMÓG",
+          "acceptance": "Większość banków: TAK",
+          "exceptions": "CITI Handlowy: NIE"
+        },
+        "zakup_kamienicy": {
+          "type": "WYMÓG",
+          "acceptance": "Większość banków: NIE",
+          "exceptions": "Alior: TAK (do 500 m2), Millennium: Indywidualne, ING: NIE"
+        },
+        "zakup_działki_rekreacyjnej": {
+          "type": "WYMÓG",
+          "acceptance": "Prawie wszystkie banki: NIE",
+          "exception": "BOŚ: TAK (LTV 60%)"
+        },
+        "TBS": {
+          "type": "WYMÓG",
+          "acceptance": "Większość: NIE",
+          "exceptions": "PKO, Santander: TAK (z zabezpieczeniem na innej nieruchomości)"
+        },
+        "konsolidacja_niemieszkaniowa": {
+          "type": "WYMÓG",
+          "acceptance_split": {
+            "tak": ["Alior", "ING", "Millennium", "PKO", "Santander", "BOŚ"],
+            "nie": ["BNP Paribas", "CITI", "mBank", "Pekao", "VELO"],
+            "limits": "Max 30% celu mieszkaniowego lub marża ważona"
+          }
+        },
+        "cel_dowolny": {
+          "type": "WYMÓG",
+          "limits": ["brak", "15%", "25%", "30%", "40% wartości zabezpieczenia"],
+          "note": "To także WYMÓG - określa czy bank w ogóle oferuje cel dowolny i w jakiej wysokości"
+        }
+      }
+    },
+    "05_zabezpieczenia": {
+      "group_category": "WYMÓG",
+      "group_description": "Parametry określają wymagania dotyczące zabezpieczeń - KWALIFIKACJA nieruchomości",
+      "parameters": {
+        "zabezpieczenie_na_nieruchomości_trzeciej": {
+          "type": "WYMÓG",
+          "rationale": "Określa czy bank akceptuje nieruchomość osoby trzeciej jako zabezpieczenie - KWALIFIKACJA",
+          "options": ["nie", "tak", "tylko jako dodatkowe", "właściciel musi być kredytobiorcą"],
+          "split": {
+            "nie": ["CITI", "VELO"],
+            "tak": ["Alior", "PKO", "BOŚ"],
+            "warunkowe": ["BNP (tylko dodatkowe)", "mBank/Pekao/Santander (właściciel=kredytobiorca)"]
+          }
+        },
+        "działka_jako_wkład_własny": {
+          "type": "WYMÓG",
+          "rationale": "Określa czy działka w posiadaniu klienta może być wkładem własnym - KWALIFIKACJA wkładu",
+          "standard": "TAK - gdy działka jest własnością kredytobiorców",
+          "exception": "CITI - brak celu budowa domu"
+        }
+      }
+    },
+    "06_wycena": {
+      "group_category": "JAKOŚĆ",
+      "group_description": "Parametry dotyczące wyceny nieruchomości - wpływają na KOSZTY i PROCES, nie na kwalifikację",
+      "parameters": {
+        "operat_zewnętrzny_wewnętrzny": {
+          "type": "JAKOŚĆ",
+          "rationale": "Rodzaj operatu wpływa na koszty i czas procesu - nie wyklucza klienta",
+          "options": ["tylko wewnętrzny", "tylko zewnętrzny", "wewnętrzny i zewnętrzny", "brak wymogu"],
+          "split": {
+            "wewnętrzny": ["BNP", "CITI", "mBank", "PKO"],
+            "zewnętrzny": ["Pekao", "BOŚ", "VELO"],
+            "oba": ["Alior", "ING", "Millennium", "Santander"]
+          }
+        },
+        "płatność_za_operat": {
+          "type": "JAKOŚĆ",
+          "rationale": "Koszt operatu to element kosztowy oferty - wpływa na całkowity koszt kredytu",
+          "lokal_mieszkalny": "200-560 zł",
+          "dom": "600-1160 zł",
+          "działka": "290-550 zł",
+          "na_koszt_banku": ["niektóre banki przy operacie wewnętrznym"]
+        }
+      }
+    },
+    "07_ubezpieczenia": {
+      "group_category": "JAKOŚĆ",
+      "group_description": "WSZYSTKIE parametry dotyczą KOSZTÓW i WARUNKÓW ubezpieczeń - nie wykluczają klienta",
+      "parameters": {
+        "ubezpieczenie_pomostowe": {
+          "type": "JAKOŚĆ",
+          "rationale": "Koszt ubezpieczenia pomostowego wpływa na całkowity koszt kredytu - nie jest wymogiem kwalifikującym",
+          "options": ["brak", "+0,5 p.p.", "+1 p.p.", "+1,3%"],
+          "note": "Często zwrot po wpisie hipoteki"
+        },
+        "ubezpieczenie_niskiego_wkładu": {
+          "type": "JAKOŚĆ",
+          "rationale": "Koszt ubezpieczenia przy niskim wkładzie - element cenowy oferty",
+          "options": ["nie dotyczy", "brak", "+0,2%", "+0,25%", "koszt banku"],
+          "note": "Dotyczy wkładu <20%"
+        },
+        "ubezpieczenie_na_życie": {
+          "type": "JAKOŚĆ",
+          "rationale": "Wymagania UŻ wpływają na koszt oferty - można spełnić zewnętrznym ubezpieczeniem",
+          "options": ["brak wymogu", "wymagane", "opcjonalne z wpływem na marżę"],
+          "cost": "0,03-0,035% salda lub 2,85-5% kwoty kredytu",
+          "penalty": "Brak UŻ: +0,5 p.p. (Millennium)"
+        },
+        "ubezpieczenie_od_utraty_pracy": {
+          "type": "JAKOŚĆ",
+          "rationale": "Dodatkowe ubezpieczenie - opcja, nie wymóg",
+          "availability": "Nieliczne banki (PKO, VELO, BOŚ CPI)"
+        },
+        "ubezpieczenie_nieruchomości": {
+          "type": "JAKOŚĆ",
+          "rationale": "Dostępność i koszty ubezpieczenia nieruchomości - element oferty",
+          "availability": "Większość banków: TAK",
+          "cost": "0,0049-0,0228% wartości",
+          "bonus": "ING: obniżka marży o 0,05 p.p. przy wariancie rozszerzonym"
+        }
+      }
+    },
+    "08_ważność_dokumentów": {
+      "group_category": "WYMÓG",
+      "group_description": "WSZYSTKIE parametry to wymagania proceduralne - niespełnienie = brak możliwości procesowania wniosku",
+      "summary": {
+        "total_parameters": 16,
+        "all_are_requirements": true,
+        "rationale": "Terminy ważności dokumentów to wymagania formalne - przeterminowany dokument = konieczność dostarczenia nowego = opóźnienie/odrzucenie"
+      },
+      "typical_validity_periods": {
+        "zaświadczenie_o_zarobkach": "30-60 dni (najczęściej 30)",
+        "zaświadczenie_US_ZUS": "30-90 dni (najczęściej 30)",
+        "odpis_KRS": "10-90 dni (najczęściej 30-90)",
+        "operat_szacunkowy": "6-12 miesięcy (najczęściej 12)",
+        "wypis_wyrys": "60-180 dni lub musi potwierdzać stan aktualny",
+        "decyzja_kredytowa": "20-90 dni (najczęściej 30-45)",
+        "umowa_kredytowa": "60-180 dni na uruchomienie"
+      },
+      "note": "Różnice w terminach między bankami wymagają precyzyjnego planowania procesu kredytowego"
+    }
+  },
+  "statistics": {
+    "total_parameters_analyzed": 87,
+    "WYMÓG_count": 68,
+    "JAKOŚĆ_count": 19,
+    "breakdown_by_group": {
+      "01_parametry_kredytu": {"WYMÓG": 4, "JAKOŚĆ": 12, "total": 16},
+      "02_kredytobiorca": {"WYMÓG": 7, "JAKOŚĆ": 0, "total": 7},
+      "03_źródło_dochodu": {"WYMÓG": 20, "JAKOŚĆ": 0, "total": 20},
+      "04_cel_kredytu": {"WYMÓG": 24, "JAKOŚĆ": 0, "total": 24},
+      "05_zabezpieczenia": {"WYMÓG": 2, "JAKOŚĆ": 0, "total": 2},
+      "06_wycena": {"WYMÓG": 0, "JAKOŚĆ": 2, "total": 2},
+      "07_ubezpieczenia": {"WYMÓG": 0, "JAKOŚĆ": 5, "total": 5},
+      "08_ważność_dokumentów": {"WYMÓG": 16, "JAKOŚĆ": 0, "total": 16}
+    },
+    "percentage": {
+      "WYMÓG": "78.2%",
+      "JAKOŚĆ": "21.8%"
+    }
+  },
+  "practical_application": {
+    "use_cases": {
+      "matching_engine": "Parametry WYMÓG służą do eliminacji banków, które nie spełniają wymagań klienta (pre-screening). Parametry JAKOŚĆ służą do rankingu pozostałych banków.",
+      "client_consultation": "WYMÓG: 'Musisz spełnić te warunki'. JAKOŚĆ: 'Te banki oferują lepsze warunki'.",
+      "ai_prompts": "Przy weryfikacji używaj WYMÓG jako kryteriów dyskwalifikujących (✅/❌). JAKOŚĆ jako kryteriów porównawczych (ocena 1-10)."
+    },
+    "key_insights": {
+      "most_restrictive_groups": "Źródło dochodu (20 wymogów) i Cel kredytu (24 wymogi) - to główne obszary dyskwalifikacji klientów",
+      "quality_differentiation": "Banki konkurują głównie parametrami JAKOŚĆ (kwoty, okresy, koszty, ubezpieczenia) - mają podobne WYMOGI",
+      "strategic_importance": "System dopasowania musi NAJPIERW filtrować po WYMOGACH (kwalifikacja), POTEM rankować po JAKOŚCI (optymalizacja)"
+    }
+  }
+}

@@ -1,0 +1,1136 @@
+{
+  "metadata": {
+    "description": "Kategoryzacja wszystkich parametrów bankowych z podziałem na WYMÓG (kwalifikacja klienta) i JAKOŚĆ (warunki oferty)",
+    "date_created": "2025-10-24",
+    "banks_analyzed": 11,
+    "total_parameter_groups": 8
+  },
+  "classification": {
+    "01_parametry kredytu": {
+      "category": "JAKOŚĆ",
+      "description": "Parametry definiujące warunki oferty kredytowej - nie wykluczają klienta, ale określają atrakcyjność produktu",
+      "parameters": {
+        "udzoz": {
+          "field_type": "JAKOŚĆ",
+          "description": "Waluta kredytu - określa warunki oferty",
+          "all_options": [
+            "PLN",
+            "PLN, EUR (tylko cel mieszkaniowy)",
+            "PLN, EUR, NOK, SEK"
+          ]
+        },
+        "02_kwota kredytu": {
+          "field_type": "JAKOŚĆ",
+          "description": "Limity kwotowe - określają zakres finansowania",
+          "all_options": [
+            "10 000 - do zdolności Klienta",
+            "20 000 zł - maksymalna kwota nie jest ustalona",
+            "70.000 - 4 000 000 zł",
+            "100 000 - 3 000 000 zł",
+            "100 000 - 4 000 000 zł",
+            "100.000,00 - 3.000.000,00",
+            "(100 000 gdy konto osobiste z wpływami) 200 000 - 4 000 000 zł",
+            "(150 000 oferta standardowa) 100 000 - 4 000 000 zł",
+            "600 000 PLN Region Centralny, 500 000 PLN pozostałe regiony",
+            "do 30 000 000 zł"
+          ]
+        },
+        "03_okres kredytowania kredytu": {
+          "field_type": "JAKOŚĆ",
+          "description": "Maksymalny okres spłaty - wpływa na wysokość raty",
+          "all_options": [
+            "72 mce - 420 mcy",
+            "300 miesięcy",
+            "360 miesięcy",
+            "420 miesięcy"
+          ]
+        },
+        "04_LTV kredyt": {
+          "field_type": "WYMÓG",
+          "description": "Maksymalny wskaźnik kredytu do wartości - określa minimalny wkład własny (kwalifikacja)",
+          "all_options": [
+            "0.7",
+            "0.8",
+            "0.9",
+            "80% LTV - kredyt mieszkaniowy, 80% LTV - konsolidacja z częścią na cel mieszkaniowy, 70% LTV - konsolidacja bez celu mieszkaniowego",
+            "90% (z wyłączeniem domów w budowie systemem gospodarczym i działek tu 80%)",
+            "90% dla PLN, 87% dla EUR",
+            "90% dla lokali mieszkalnych, 80% dla domów w PLN",
+            "standardowo 80%; przy dodatkowych zabezpieczeniach kwota może zostać podwyższona do 90%"
+          ]
+        },
+        "05_kwota pożyczki": {
+          "field_type": "JAKOŚĆ",
+          "description": "Limity dla pożyczki hipotecznej",
+          "all_options": [
+            "-",
+            "brak",
+            "brak w ofercie",
+            "brak w ofercie banku",
+            "bez ograniczeń",
+            "do 250 000 zł dla IDG, dla pozostałych do 500 000",
+            "do 3 000 000 zł",
+            "do 4 000 000 zł",
+            "do 500 000 zł",
+            "do 30 000 000 zł",
+            "segment CPC do 2 000 000 zł, pozostałe do 1 000 000 zł"
+          ]
+        },
+        "06_okres kredytowania pożyczki": {
+          "field_type": "JAKOŚĆ",
+          "description": "Maksymalny okres dla pożyczki",
+          "all_options": [
+            "-",
+            "brak w ofercie",
+            "brak w ofercie banku",
+            "180 miesięcy",
+            "240 miesięcy",
+            "300 miesięcy",
+            "360 miesięcy",
+            "do 180 miesięcy poniżej 80 000 zł, powyżej 80 000 zł do 240 miesięcy"
+          ]
+        },
+        "07_LTV pożyczka": {
+          "field_type": "WYMÓG",
+          "description": "LTV dla pożyczki - kwalifikacja klienta",
+          "all_options": [
+            "-",
+            "brak w ofercie",
+            "brak w ofercie banku",
+            "0.6",
+            "0.7",
+            "0.8",
+            "55%, kwota maksymalna 500 tys.",
+            "60% w przypadku nieruchomości rekreacyjnej/rolno-siedliskowej, 70% pozostałe",
+            "LTV - pożyczka hipoteczna 70%, kwota maksymalna 500 tys."
+          ]
+        },
+        "08_wkład własny": {
+          "field_type": "WYMÓG",
+          "description": "Minimalny wkład własny wymagany od klienta - kwalifikacja",
+          "all_options": [
+            "0.1",
+            "0.2",
+            "10% dla lokali mieszkalnych, 20% dla domów w PLN",
+            "10% (możliwe jest przyjęcie 10 % wkładu przy zastosowaniu dodatkowego zabezpieczenia)",
+            "10% (z wyłączeniem domów w budowie systemem gospodarczym i działek tu 20%)",
+            "10% dla PLN, 16% dla EUR"
+          ]
+        },
+        "09_WIBOR (stawka referencyjna)": {
+          "field_type": "JAKOŚĆ",
+          "description": "Referencyjna stawka procentowa - wpływa na oprocentowanie",
+          "all_options": [
+            "WIBOR 1M",
+            "WIBOR 3M",
+            "WIBOR 6M"
+          ]
+        },
+        "10_oprocentowanie stałe - na ile lat?": {
+          "field_type": "JAKOŚĆ",
+          "description": "Okres oprocentowania stałego - stabilność oferty",
+          "all_options": [
+            "5 lat",
+            "5 lat, 10 lat",
+            "5 lat (1 transza)"
+          ]
+        },
+        "11_wcześniejsza spłata": {
+          "field_type": "JAKOŚĆ",
+          "description": "Opłata za wcześniejszą spłatę - elastyczność oferty",
+          "all_options": [
+            "0% - dotyczy zmiennego i stałego",
+            "1% (36 miesięcy od podpisania umowy), dotyczy zmiennego - % stałe bez opłat",
+            "1% (do 50% kapitału w pierwszych 36 miesiącach bez opłaty)",
+            "2% (36 miesięcy), % stałe bez opłat",
+            "2% (po 5 latach bezpłatna), % stałe przez pierwsze 36 miesięcy max 3%",
+            "3% (36 miesięcy), % stałe bez opłat"
+          ]
+        },
+        "12_raty równe, malejące": {
+          "field_type": "JAKOŚĆ",
+          "description": "Dostępne typy rat - elastyczność spłaty",
+          "all_options": [
+            "równe",
+            "równe lub malejące",
+            "równe i malejące"
+          ]
+        },
+        "13_karencja w spłacie kapitału": {
+          "field_type": "JAKOŚĆ",
+          "description": "Okres karencji - elastyczność spłaty",
+          "all_options": [
+            "nie dotyczy",
+            "2 miesiące pożyczka, 12 miesięcy - pozostałe, 36 miesięcy - budowa",
+            "6 miesięcy - pożyczka hipoteczna, 24 miesiące - kredyt mieszkaniowy",
+            "12 miesięcy dla kredytu hipotecznego, 24 miesiące dla budowlano-hipotecznego",
+            "24 miesiące",
+            "24 miesiące (liczone od uruchomienia)",
+            "30 miesięcy (cel remontowo-budowlany) + 12 m/c",
+            "36 mcy (do wypłaty ostatniej transzy)",
+            "maksymalnie karencja indywidualna do 60 miesięcy",
+            "kredyt w PLN maksymalnie 12 miesięcy dla 15 lat, 24 miesiące dla powyżej 15 lat, 36 miesięcy przy inwestorze zastępczym"
+          ]
+        },
+        "14_ile kredytów hipotecznych może mieć Klient": {
+          "field_type": "WYMÓG",
+          "description": "Limit kredytów hipotecznych - kwalifikacja klienta",
+          "all_options": [
+            "nie ma limitu",
+            "bez ograniczeń",
+            "indywidualne podejście banku",
+            "w momencie wnioskowania 2 kredyty hipoteczne",
+            "Klient Priority 3 kredyty, Klient Gold 4 kredyty",
+            "Klient łączenie z wnioskowanym może mieć 4 kredyty (1: 90%, 2: 90%, 3: 70%, 4: 50% LTV)",
+            "Przy produktach hipotecznych nie mamy ograniczenia co do ilości"
+          ]
+        },
+        "15_wielkość działki": {
+          "field_type": "WYMÓG",
+          "description": "Maksymalna powierzchnia działki - kwalifikacja nieruchomości",
+          "all_options": [
+            "brak celu budowa domu",
+            "bank nie ma ograniczenia - podejście indywidualne",
+            "2 ha (przy nabyciu lub budowie domu)",
+            "do 0,9999 ha",
+            "do 2 999 m2",
+            "do 3 000 m2",
+            "do 10 000 m2"
+          ]
+        },
+        "16_kredy EKO": {
+          "field_type": "JAKOŚĆ",
+          "description": "Oferta kredytu ekologicznego - dodatkowa korzyść cenowa",
+          "all_options": [
+            "brak",
+            "obniżka marży o 0,05 p.p.",
+            "obniżka marży o 0,10 p.p.",
+            "obniżka marży o 0,2 p.p.",
+            "Oferta domu energooszczędnego (szczegółowe warunki EP)",
+            "szczegółowe wymogi EP dla różnych typów budynków"
+          ]
+        }
+      }
+    },
+    "02_kredytobiorca": {
+      "category": "WYMÓG",
+      "description": "Wymagania dotyczące kredytobiorcy - kwalifikacja osobowa klienta",
+      "parameters": {
+        "01_wiek Klienta": {
+          "field_type": "WYMÓG",
+          "description": "Limity wiekowe kredytobiorcy - kwalifikacja",
+          "all_options": [
+            "18 - 65 lat (mężczyzna), 18 - 60 lat (kobieta)",
+            "18 - 67 lat",
+            "18 - 70 lat",
+            "18 - 75 lat",
+            "18 - 80 lat (raty malejące), 18 - 75 lat (raty równe)",
+            "18 - brak górnej granicy (powyżej 70 lat UB na życie)",
+            "20 - 70 lat",
+            "20 - 75 lat",
+            "21 - 70 lat"
+          ]
+        },
+        "02_maksymalna liczba wnioskodawców": {
+          "field_type": "WYMÓG",
+          "description": "Limit kredytobiorców we wniosku - kwalifikacja",
+          "all_options": [
+            "2 wnioskodawców",
+            "4 wnioskodawców",
+            "4 wnioskodawców (2 gospodarstwa domowe)",
+            "4 wnioskodawców (3 gospodarstwa domowe)",
+            "6 wnioskodawców",
+            "6 wnioskodawców (3 gospodarstwa domowe)",
+            "bank nie określa maksymalnej liczby"
+          ]
+        },
+        "03_związek nieformalny": {
+          "field_type": "WYMÓG",
+          "description": "Czy związek nieformalny traktowany jako jedno gospodarstwo - wpływa na zdolność",
+          "all_options": [
+            "jako jedno gospodarstwo",
+            "jeśli Klienci mają wspólny adres do korespondencji to jako jedno",
+            "tak",
+            "tak, według oświadczenia na wniosku",
+            "tak, pod warunkiem wspólnego adresu zamieszkania",
+            "tak ale ten sam adres zamieszkania",
+            "Klientów nie będących w związku małżeńskim potraktuje jako jedno gospodarstwo gdy spełniają warunki"
+          ]
+        },
+        "04_czy należy dostarczyć ksero dowodu": {
+          "field_type": "WYMÓG",
+          "description": "Wymóg formalny dokumentacji",
+          "all_options": [
+            "nie",
+            "nie (należy złożyć leada do banku)",
+            "tak"
+          ]
+        },
+        "05_czy wszyscy właściciele muszą przystąpić": {
+          "field_type": "WYMÓG",
+          "description": "Wymóg przystąpienia wszystkich właścicieli do kredytu",
+          "all_options": [
+            "nie",
+            "nie (wszyscy właściciele muszą wyrazić zgodę na hipotekę)",
+            "nie muszą jako kredytobiorcy, muszą zostać poręczycielami",
+            "tak",
+            "tak (wyjątek kredyt na remont lub modernizację)",
+            "zakup - nie, budowa domu - tak"
+          ]
+        },
+        "06_rozdzielność majątkowa": {
+          "field_type": "WYMÓG",
+          "description": "Wymóg dotyczący rozdzielności majątkowej",
+          "all_options": [
+            "po uprawomocnieniu"
+          ]
+        },
+        "07_cudzoziemiec": {
+          "field_type": "WYMÓG",
+          "description": "Wymagania dla cudzoziemców - kwalifikacja",
+          "all_options": [
+            "brak oferty dla cudzoziemców",
+            "karta stałego pobytu",
+            "karta pobytu ważna minimum 12 miesięcy",
+            "karta pobytu ma być ważna 6 miesięcy do przodu",
+            "Ważność karty powinna starczyć na cały proces",
+            "karta pobytu minimum 12 miesięcy wprzód + dokument potwierdzający zameldowanie",
+            "karta pobytu potwierdzająca adres zameldowanie (szczegółowe wymagania)",
+            "karta stałego pobytu w Polsce lub zaświadczenie o zarejestrowaniu pobytu obywatela UE",
+            "nie ma określonego czasu ważności karty w przód",
+            "Karta pobytu nie jest konieczna, dokument z nr pesel + paszport",
+            "dotyczy cudzoziemca posiadającego kartę pobytu stałego lub obywatela UE"
+          ]
+        }
+      }
+    },
+    "03_źródło dochodu": {
+      "category": "WYMÓG",
+      "description": "Wymagania dotyczące źródeł dochodu - kwalifikacja finansowa klienta",
+      "parameters": {
+        "01_umowa o pracę na czas określony": {
+          "field_type": "WYMÓG",
+          "description": "Minimalne stażepracy i okres obowiązywania umowy",
+          "all_options_summary": {
+            "staż_minimalny": ["1 miesiąc (z warunkami)", "3 miesiące", "6 miesięcy"],
+            "okres_do_przodu": ["3 miesiące", "6 miesięcy", "8 miesięcy", "12 miesięcy"],
+            "ciągłość_zatrudnienia": ["6 miesięcy", "12 miesięcy", "24 miesiące"]
+          }
+        },
+        "02_umowa o pracę na czas nieokreślony": {
+          "field_type": "WYMÓG",
+          "description": "Minimalny staż pracy",
+          "all_options_summary": {
+            "staż_minimalny": ["1 miesiąc (z warunkami)", "3 miesiące", "6 miesięcy"],
+            "staż_u_obecnego": ["1 miesiąc", "3 miesiące", "6 miesięcy"]
+          }
+        },
+        "03_umowa na zastępstwo": {
+          "field_type": "WYMÓG",
+          "description": "Akceptacja umowy na zastępstwo",
+          "all_options": [
+            "nie",
+            "tak"
+          ]
+        },
+        "04_kontrakt menadżerski": {
+          "field_type": "WYMÓG",
+          "description": "Wymagania dla kontraktu menadżerskiego",
+          "all_options_summary": {
+            "traktowany_jak": ["umowa o pracę", "wymagania analogiczne"],
+            "minimalny_okres": ["3 miesiące", "6 miesięcy", "12 miesięcy"]
+          }
+        },
+        "05_umowa o dzieło": {
+          "field_type": "WYMÓG",
+          "description": "Akceptacja umowy o dzieło",
+          "all_options": [
+            "nie",
+            "nie (możliwe odstępstwo)",
+            "tak (z warunkami minimum 12 miesięcy)",
+            "jako dodatkowy dochód do wniosku"
+          ]
+        },
+        "06_umowa zlecenie": {
+          "field_type": "WYMÓG",
+          "description": "Wymagania dla umowy zlecenie",
+          "all_options_summary": {
+            "minimalny_okres": ["12 miesięcy", "24 miesiące"],
+            "jako_dochód": ["główny", "dodatkowy (max 80% pozostałych dochodów)"],
+            "okres_do_przodu": ["3 miesiące", "6 miesięcy"]
+          }
+        },
+        "07_działalność gospodarcza - pełna księgowość": {
+          "field_type": "WYMÓG",
+          "description": "Minimalny okres prowadzenia działalności",
+          "all_options": [
+            "12 miesięcy",
+            "12 miesięcy (z wyjątkami: IT, usługi prawne, ochrona zdrowia)",
+            "24 miesiące",
+            "24 miesiące (wolne zawody 12 miesięcy)",
+            "Samozatrudnienie: 3 miesiące (z warunkami)",
+            "Samozatrudnienie: 6 miesięcy (z warunkami)"
+          ]
+        },
+        "08_działalność gospodarcza - KPiR": {
+          "field_type": "WYMÓG",
+          "description": "Minimalny okres prowadzenia działalności KPiR",
+          "all_options": [
+            "12 miesięcy",
+            "12 miesięcy (z wyjątkami)",
+            "24 miesiące",
+            "24 miesiące (wolne zawody 12 miesięcy)",
+            "indywidualne podejście banku",
+            "Samozatrudnienie: 3-6 miesięcy (z warunkami)"
+          ]
+        },
+        "09_działalność gospodarcza - ryczałt": {
+          "field_type": "WYMÓG",
+          "description": "Wymagania dla ryczałtu",
+          "all_options": [
+            "12 miesięcy",
+            "24 miesiące",
+            "akceptowany ryczałt dla działalności od 01.01.2022 (weryfikowane w CEIDG)",
+            "nieakceptowane dla działalności z ryczałtem przed 01.01.2022",
+            "indywidualne podejście banku"
+          ]
+        },
+        "10_działalność gospodarcza - karta podatkowa": {
+          "field_type": "WYMÓG",
+          "description": "Wymagania dla karty podatkowej",
+          "all_options": [
+            "12 miesięcy",
+            "24 miesiące",
+            "nieakceptowane źródło dochodu",
+            "indywidualne podejście banku"
+          ]
+        },
+        "11_działalność rolnicza": {
+          "field_type": "WYMÓG",
+          "description": "Akceptacja działalności rolniczej",
+          "all_options": [
+            "nie",
+            "tak (od minimum 12 miesięcy)",
+            "tak (od minimum 24 miesięcy)",
+            "tak (szczegółowe warunki dotyczące działów specjalnych, dzierżawy)"
+          ]
+        },
+        "11_dochody z najmu": {
+          "field_type": "WYMÓG",
+          "description": "Wymagania dla dochodów z najmu",
+          "all_options": [
+            "nie (tylko na odstępstwo)",
+            "tak (od 6 miesięcy)",
+            "tak (od 12 miesięcy)",
+            "tylko jako dodatkowy dochód (50% dochodu)",
+            "szczegółowe warunki: 12 miesięcy, umowa min 3 miesiące do przodu"
+          ]
+        },
+        "12_emerytura": {
+          "field_type": "WYMÓG",
+          "description": "Akceptacja emerytury",
+          "all_options": [
+            "tak",
+            "bezterminowa lub wykraczająca poza okres kredytowania"
+          ]
+        },
+        "13_renta": {
+          "field_type": "WYMÓG",
+          "description": "Akceptacja renty",
+          "all_options": [
+            "tak",
+            "tak, ale przyznana na okres stały",
+            "bezterminowa lub wykraczająca poza okres kredytowania",
+            "tylko renta na czas nieokreślony"
+          ]
+        },
+        "14_dywidendy": {
+          "field_type": "WYMÓG",
+          "description": "Akceptacja dywidend",
+          "all_options": [
+            "nie",
+            "tak (od 24 miesięcy)",
+            "tak (od 36 miesięcy - Private Banking)",
+            "tak (od 24 miesięcy, spółka w CITI Handlowy)"
+          ]
+        },
+        "15_diety": {
+          "field_type": "WYMÓG",
+          "description": "Akceptacja diet",
+          "all_options": [
+            "nie",
+            "tak (od 6 miesięcy, 100% podstawy + 50% diety)",
+            "tak (75% średniomiesięcznej diety kierowców)",
+            "tak (100% pod warunkiem wpływu na konto)",
+            "tak (jako dochód dodatkowy, max 80% wynagrodzenia podstawowego)"
+          ]
+        },
+        "16_dochody marynarzy": {
+          "field_type": "WYMÓG",
+          "description": "Wymagania dla marynarzy",
+          "all_options": [
+            "nie",
+            "tak (od 12 miesięcy, ciągły charakter)",
+            "tak (staż pracy 5 lat, pobyt na morzu 6 mc/rok w ostatnich 3 latach)",
+            "tak (szczegółowe wymagania dotyczące dokumentacji)"
+          ]
+        },
+        "17_urlop macierzyński": {
+          "field_type": "WYMÓG",
+          "description": "Akceptacja zasiłku macierzyńskiego",
+          "all_options": [
+            "nie",
+            "tak",
+            "tak (oświadczenie o powrocie do pracy nie wymagane)",
+            "tak (100% gdy umowa nieokreślona, min 6 mc u pracodawcy)",
+            "tak (nie może być jedynym źródłem dochodu)",
+            "tak (80% dochodu)"
+          ]
+        },
+        "18_dochód w obcej walucie": {
+          "field_type": "WYMÓG",
+          "description": "Akceptacja dochodów w walucie obcej",
+          "all_options": [
+            "brak akceptacji dochodu",
+            "brak akceptacji dla jedynego źródła dochodu",
+            "tak (EUR, SEK, NOK - szczegółowe warunki)",
+            "tak (jako dodatkowy, wpływy na konto w Polsce)",
+            "nieakceptowane jeśli jedyne źródło (obniżenie do 50% gdy dodatkowe)"
+          ]
+        },
+        "19_800 plus": {
+          "field_type": "WYMÓG",
+          "description": "Sposób traktowania świadczenia 800+",
+          "all_options": [
+            "nie akceptuje",
+            "od stycznia 2025 bank nie akceptuje dochodu 800+",
+            "800 plus pomniejsza koszty utrzymania",
+            "800 plus rejestrowany jako dodatkowy dochód",
+            "800 plus akceptowalne jako dochód (okres otrzymywania > okres kredytowania)"
+          ]
+        },
+        "20_powołanie w spółce": {
+          "field_type": "WYMÓG",
+          "description": "Wymagania dla dochodów z powołania",
+          "all_options": [
+            "nie akceptuje",
+            "jak umowa o pracę",
+            "od 6 miesięcy",
+            "od 12 miesięcy",
+            "szczegółowe warunki dotyczące kadencji, regularności wypłat"
+          ]
+        }
+      }
+    },
+    "04_cel kredytu": {
+      "category": "WYMÓG",
+      "description": "Cele kredytowania - określają czy bank finansuje dany cel (kwalifikacja celu)",
+      "parameters": {
+        "01_zakup mieszkania i domu": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje zakup mieszkania/domu",
+          "all_options": [
+            "tak",
+            "tak (rynek pierwotny: wymagane 90% zaawansowania inwestycji)",
+            "90% LTV jeżeli mieszkanie lub dom jest zabezpieczeniem"
+          ]
+        },
+        "02_budowa domu systemem gospodarczym": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje budowę domu",
+          "all_options": [
+            "nie",
+            "tak"
+          ]
+        },
+        "03_budowa domu - cena za metr 2": {
+          "field_type": "WYMÓG",
+          "description": "Limity kosztów budowy m2",
+          "all_options": [
+            "nie dotyczy",
+            "bank nie udziela informacji",
+            "3300 zł/m2",
+            "3700 zł/m2",
+            "4200 zł/m2 do stanu wykończonego, 3500 zł/m2 do stanu deweloperskiego",
+            "4500 zł/m2",
+            "4000-8000 zł/m2 (max 10000 zł/m2 w szczególnych przypadkach)",
+            "cena za metr zależna od województwa widoczna w zakładce kosztorys",
+            "koszty budowy zaszyte w kosztorysie w zależności od rodzaju i lokalizacji",
+            "informacja podpięta na PACT (w zależności od województwa)"
+          ]
+        },
+        "04_budowa domu do stanu deweloperskiego": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje budowę do stanu deweloperskiego",
+          "all_options": [
+            "nie",
+            "nie dotyczy - brak celu: budowa domu",
+            "tak",
+            "tak (jeżeli będzie pozwolenie na użytkowanie - co najmniej parter)",
+            "tak (stan deweloperski wymaga tynków wewnętrznych)"
+          ]
+        },
+        "05_zakup działki i budowa domu jednocześnie": {
+          "field_type": "WYMÓG",
+          "description": "Czy jeden kredyt czy dwa",
+          "all_options": [
+            "nie",
+            "nie dotyczy - brak celu: budowa domu",
+            "jeden kredyt",
+            "jeden kredyt (1 transza działka, 2 transza budowa)",
+            "jeden kredyt (jeżeli pozwolenie wydane na zbywcę)",
+            "gdy pozwolenie na budowę jeden kredyt",
+            "zakup działki jednym kredytem jeżeli jest już wydane pozwolenie na budowę",
+            "zakup działki z rozpoczętą budową to jeden kredyt",
+            "jeżeli działka nie jest z rozpoczętą budową lub pozwoleniem to dwa kredyty"
+          ]
+        },
+        "06_zakup samej działki budowlanej": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje sam zakup działki",
+          "all_options": [
+            "nie",
+            "tak",
+            "tak (max 0,5 ha)",
+            "tak (max 0,9999 ha)",
+            "tak (max 1 ha)",
+            "tak (max 3000 m2)",
+            "tak (działka do 3000 m2, jeżeli budowlana w wypisie to bez granicy)",
+            "tak (powierzchnia nie może przekroczyć 2999 m2, typowa do 1500 m2 - 10%, nietypowa >1500 m2 - 40%)"
+          ]
+        },
+        "07_zakup działki rekreacyjnej": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje działkę rekreacyjną",
+          "all_options": [
+            "nie",
+            "tak (LTV 60%)"
+          ]
+        },
+        "08_zakup działki rolnej": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje działkę rolną (z warunkami)",
+          "all_options": [
+            "nie",
+            "nie (możliwość pożyczką hipoteczną z zabezpieczeniem na innej nieruchomości)",
+            "tak (z warunkami: MPZP lub WZ na cele mieszkalne)",
+            "możliwe cele kredytowania przy gruntach rolnych (szczegółowe warunki)",
+            "położona na terytorium Polski działka przeznaczona pod zabudowę mieszkaniową"
+          ]
+        },
+        "09_zakup siedliska": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje zakup siedliska",
+          "all_options": [
+            "nie",
+            "tak (LTV 60%)",
+            "tak (jeśli pow. działki <0,3ha i określona pow. użytkowa domu, LTV min 80%)",
+            "tak (z zastrzeżeniem dot. działki rolnej)",
+            "tak (szczegółowe warunki: <1ha, MPZP lub WZ na cele mieszkalne/siedliskowe)"
+          ]
+        },
+        "10_zakup domu letniskowego całorocznego": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje dom letniskowy całoroczny",
+          "all_options": [
+            "nie",
+            "tak",
+            "tak (LTV 80%)",
+            "tak (warunki standardowe LTV 90%)",
+            "tak (z zastrzeżeniem dot. działki rolnej)",
+            "tak (tylko dom całoroczny, warunki standardowe z ubezpieczeniem NWW)",
+            "szczegółowe warunki całoroczności (projekt, ocieplenie, instalacje)"
+          ]
+        },
+        "11_TBS": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje TBS",
+          "all_options": [
+            "nie",
+            "tak",
+            "tak (jeśli zabezpieczeniem kredytu będzie inna nieruchomość)",
+            "tak (zabezpieczenie na innej nieruchomości)"
+          ]
+        },
+        "12_zakup lokalu użytkowego": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje lokal użytkowy",
+          "all_options": [
+            "nie",
+            "tak (cel komercyjny, max 250-400 m2, wkład 20%)",
+            "w domu jednorodzinnym mogą być dwa lokale - mieszkalny i użytkowy (<50% powierzchni)"
+          ]
+        },
+        "13_zakup kamienicy": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje zakup kamienicy",
+          "all_options": [
+            "nie",
+            "nie (brak dedykowanego produktu - indywidualna akceptacja)",
+            "kamienica do 500 m2 (większe na odstępstwo), cena jak kredytu mieszkaniowego"
+          ]
+        },
+        "14_zakup udziału w nieruchomości": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje zakup udziału",
+          "all_options": [
+            "nie",
+            "nie (bank nie zabezpiecza się na udziale w drodze/gruncie)",
+            "tak",
+            "tak (pod warunkiem zabezpieczenia na całej nieruchomości)",
+            "tak (ustanowienia zabezpieczenia na całej nieruchomości)"
+          ]
+        },
+        "15_nabycie ekspektatywy (cesja)": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje cesję (bez odstępnego)",
+          "all_options": [
+            "nie",
+            "tak (brak możliwości finansowania odstępnego)",
+            "tak (może sfinansować cesję z umowy deweloperskiej, wymagana umowa trójstronna)",
+            "tak (ale gdy cała kwota nie jest zapłacona do dewelopera)"
+          ]
+        },
+        "16_refinansowanie wydatków poniesionych": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank refinansuje poniesione wydatki (ile mc wstecz)",
+          "all_options": [
+            "nie dotyczy",
+            "nie ma celu na ten moment",
+            "do 12 miesięcy",
+            "do 24 miesięcy",
+            "szczegółowe warunki: 6-12 miesięcy w zależności od typu wydatku"
+          ]
+        },
+        "17_zakup nieruchomości z częścią komercyjną": {
+          "field_type": "WYMÓG",
+          "description": "Maksymalny % powierzchni komercyjnej",
+          "all_options": [
+            "0",
+            "20% (50% dla wolnych zawodów)",
+            "30%",
+            "50%",
+            "bez względu na udział komercji - zaklasyfikowana jako cel komercyjny",
+            "maksymalna 50% (wybrane zawody)",
+            "nie akceptowana żadna powierzchnia komercyjna"
+          ]
+        },
+        "18_refinansowanie kredytu z innego banku": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank refinansuje kredyt z innego banku",
+          "all_options": [
+            "tak",
+            "tak (tylko na % stałe)",
+            "tak (szczegółowe warunki: max LTV 80%, okres kredytowania pomniejszony)"
+          ]
+        },
+        "19_transakcja rodzinna": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank akceptuje transakcje rodzinne",
+          "all_options": [
+            "indywidualne podejście banku",
+            "indywidualna decyzja analityka",
+            "tak",
+            "nie (bank nie finansuje zakupu od rodziców, małżonków, przysposobionych)"
+          ]
+        },
+        "20_panele fotowoltaiczne": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank finansuje panele fotowoltaiczne",
+          "all_options": [
+            "nie",
+            "brak informacji",
+            "indywidualne podejście banku",
+            "tak (przy budowie domu)",
+            "tak (kredyt eko)",
+            "tak (rozliczenie na podstawie faktur)",
+            "metodyka nie wyklucza - ryzyko braku wzrostu wartości nieruchomości"
+          ]
+        },
+        "21_pożyczka hipoteczna": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank oferuje pożyczkę hipoteczną",
+          "all_options": [
+            "nie",
+            "brak",
+            "brak w ofercie banku",
+            "tak"
+          ]
+        },
+        "22_konsolidacja zobowiązań niemieszkaniowych": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank konsoliduje kredyty gotówkowe itp.",
+          "all_options": [
+            "nie",
+            "tak",
+            "tak (cały kredyt po cenie konsolidacyjnego)",
+            "tak (max 30% celu mieszkaniowego)",
+            "tak (jeżeli cel konsolidacyjny >50% kredytu - marża ważona)"
+          ]
+        },
+        "23_cel dowolny po cenie kredytu mieszkaniowego": {
+          "field_type": "WYMÓG",
+          "description": "Jaki % można przeznaczyć na cel dowolny",
+          "all_options": [
+            "brak",
+            "15% celu mieszkaniowego",
+            "25% kwoty kredytu",
+            "30% celu mieszkaniowego / kwoty kredytu",
+            "30% wartości nieruchomości (max 50% kwoty kredytu)",
+            "40% wartości zabezpieczenia",
+            "maksymalnie 15% kwoty kredytu"
+          ]
+        }
+      }
+    },
+    "05_zabezpieczenia": {
+      "category": "WYMÓG",
+      "description": "Wymagania dotyczące zabezpieczeń kredytu",
+      "parameters": {
+        "01_zabezpieczenie na nieruchomości osoby trzeciej": {
+          "field_type": "WYMÓG",
+          "description": "Czy bank akceptuje zabezpieczenie na nieruchomości osoby trzeciej",
+          "all_options": [
+            "nie",
+            "tak",
+            "tak (właściciel musi być kredytobiorcą)",
+            "tak (właściciel podpisuje weksel in banco)",
+            "tylko jako zabezpieczenie dodatkowe",
+            "właściciel musi być kredytobiorcą",
+            "szczegółowe warunki (poręczyciele, max wiek 75 lat, limity LTV)"
+          ]
+        },
+        "02_czy działka jest traktowana jako wkład własny": {
+          "field_type": "WYMÓG",
+          "description": "Czy działka w posiadaniu klienta jest wkładem własnym",
+          "all_options": [
+            "brak celu budowa domu",
+            "tak",
+            "tak (gdy działka jest własnością Kredytobiorców)"
+          ]
+        }
+      }
+    },
+    "06_wycena": {
+      "category": "JAKOŚĆ",
+      "description": "Parametry dotyczące wyceny nieruchomości - wpływają na koszty i proces",
+      "parameters": {
+        "01_operat zewnętrzny/wewnętrzny": {
+          "field_type": "JAKOŚĆ",
+          "description": "Rodzaj operatu - wpływa na koszty i czas",
+          "all_options": [
+            "operat wewnętrzny",
+            "operat zewnętrzny",
+            "tylko zewnętrzny do wniosku",
+            "operat zewnętrzny i wewnętrzny",
+            "operat zewnętrzny lub można oprzeć się na cenie zakupu przy rynku pierwotnym/wtórnym",
+            "bank nie wymaga operatu (w razie potrzeby zleca wewnętrznie)"
+          ]
+        },
+        "02_płatność za operat": {
+          "field_type": "JAKOŚĆ",
+          "description": "Koszty operatu - wpływają na całkowity koszt kredytu",
+          "all_options_summary": {
+            "lokal_mieszkalny": ["200-560 zł", "400 zł", "440 zł", "480 zł", "499 zł", "550 zł", "na koszt banku"],
+            "dom_jednorodzinny": ["600-930 zł", "700 zł", "740 zł", "780 zł", "799 zł", "870 zł", "1160 zł (w budowie)", "na koszt banku"],
+            "działka": ["290-550 zł", "420 zł"],
+            "rynek_pierwotny": ["200 zł"],
+            "kto_płaci": ["Klient", "na koszt banku", "operat zlecany przez bank"],
+            "dodatkowe": ["kontrola operatu 190 zł", "inspekcja 290-475 zł"]
+          }
+        }
+      }
+    },
+    "07_ubezpieczenia": {
+      "category": "JAKOŚĆ",
+      "description": "Parametry ubezpieczeń - wpływają na koszty kredytu i atrakcyjność oferty",
+      "parameters": {
+        "01_ubezpieczenie pomostowe": {
+          "field_type": "JAKOŚĆ",
+          "description": "Koszt ubezpieczenia pomostowego (do wpisu hipoteki)",
+          "all_options": [
+            "brak",
+            "+0,5 p.p. (zwrot po ustanowieniu hipoteki)",
+            "+1 p.p. (po wpisie kwota na nadpłatę)",
+            "+1,3%",
+            "podwyższenie o 1 p.p. do dnia wpisu (po wpisie na nadpłatę)",
+            "brak - jeśli warunek: kopia wniosku do sądu, w pozostałych +0,5 p.p."
+          ]
+        },
+        "02_ubezpieczenie niskiego wkładu": {
+          "field_type": "JAKOŚĆ",
+          "description": "Koszt ubezpieczenia przy wkładzie <20%",
+          "all_options": [
+            "nie dotyczy (wkład własny 20%)",
+            "nie dotyczy",
+            "nie ma, koszt banku",
+            "bank nie podwyższa marży",
+            "+0,2%",
+            "+0,25%",
+            "tak"
+          ]
+        },
+        "03_ubezpieczenie na życie": {
+          "field_type": "JAKOŚĆ",
+          "description": "Wymagania i koszty ubezpieczenia na życie",
+          "all_options": [
+            "brak",
+            "nie wymagane przez bank",
+            "wymagane tylko gdy 1 wnioskodawca lub 1 dochód",
+            "wszyscy kredytobiorcy",
+            "ubezpieczony zawsze pierwszy wnioskodawca",
+            "jeden wnioskodawca (0,035% od salda)",
+            "1 składka (w przypadku 2 kredytobiorców każdy po 50%)",
+            "1 składka na 1 kredytobiorcę",
+            "5% lub 2,85% kwoty kredytu (różne udziały dla 2 kredytobiorców)",
+            "bankowe (0,03% salda) lub indywidualne, brak UB +0,5 p.p."
+          ]
+        },
+        "04_ubezpieczenie od utraty pracy": {
+          "field_type": "JAKOŚĆ",
+          "description": "Dostępność ubezpieczenia od utraty pracy",
+          "all_options": [
+            "brak w ofercie banku",
+            "brak",
+            "tak",
+            "CPI dobrowolne (dostępne w oddziałach)",
+            "składka na 4 lata - 3,25%"
+          ]
+        },
+        "05_ubezpieczenie nieruchomości": {
+          "field_type": "JAKOŚĆ",
+          "description": "Dostępność i koszty ubezpieczenia nieruchomości",
+          "all_options": [
+            "tak",
+            "tak (0,0049%)",
+            "tak (0,0075%)",
+            "tak (0,09% wartości - składka za 12 mc)",
+            "tak (0,0096% podstawowy, 0,0228% rozszerzony z obniżką marży o 0,05 p.p.)",
+            "bankowe lub indywidualne",
+            "szczegółowe pakiety: Podstawowy I/II, Rozszerzony III (PZU/Generali)"
+          ]
+        }
+      }
+    },
+    "08_ważność dokumentów": {
+      "category": "WYMÓG",
+      "description": "Terminy ważności dokumentów - wymagania proceduralne",
+      "parameters": {
+        "01_wniosek o wstępną ocenę": {
+          "field_type": "WYMÓG",
+          "description": "Ważność wniosku wstępnego",
+          "all_options": [
+            "nie",
+            "nie dotyczy",
+            "30 dni",
+            "Klient podpisuje od razu wniosek"
+          ]
+        },
+        "02_wniosek o udzielenie kredytu": {
+          "field_type": "WYMÓG",
+          "description": "Ważność wniosku kredytowego",
+          "all_options": [
+            "14 dni (FI)",
+            "30 dni",
+            "60 dni",
+            "tak",
+            "wniosek z FI ważny 14 dni",
+            "jeżeli przez 5 dni nie ma kontaktu - odrzucenie wniosku",
+            "umowa marketingowa (leadujemy Klienta)"
+          ]
+        },
+        "03_zaświadczenie o zarobkach": {
+          "field_type": "WYMÓG",
+          "description": "Ważność zaświadczenia o zarobkach",
+          "all_options": [
+            "1 miesiąc od daty wystawienia dokumentu",
+            "30 dni",
+            "45 dni",
+            "60 dni"
+          ]
+        },
+        "04_zaświadczenie z US": {
+          "field_type": "WYMÓG",
+          "description": "Ważność zaświadczenia z Urzędu Skarbowego",
+          "all_options": [
+            "30 dni",
+            "30 dni - do złożenia wniosku",
+            "30 dni (90 dni dla nauczycieli i wykładowców)",
+            "90 dni"
+          ]
+        },
+        "05_zaświadczenie z ZUS": {
+          "field_type": "WYMÓG",
+          "description": "Ważność zaświadczenia z ZUS",
+          "all_options": [
+            "30 dni",
+            "30 dni - do złożenia wniosku",
+            "30 dni (90 dni dla nauczycieli i wykładowców)",
+            "90 dni"
+          ]
+        },
+        "06_aktualny odpis KRS": {
+          "field_type": "WYMÓG",
+          "description": "Ważność odpisu KRS",
+          "all_options": [
+            "nie starszy niż 10 dni przed przekazaniem wniosku",
+            "30 dni",
+            "doradca pobiera aktualny",
+            "90 dni",
+            "6 miesięcy"
+          ]
+        },
+        "07_opinia bankowa": {
+          "field_type": "WYMÓG",
+          "description": "Ważność opinii bankowej",
+          "all_options": [
+            "30 dni",
+            "45 dni",
+            "60 dni",
+            "w zależności czego dotyczy"
+          ]
+        },
+        "08_operat szacunkowy": {
+          "field_type": "WYMÓG",
+          "description": "Ważność operatu szacunkowego",
+          "all_options": [
+            "6 miesięcy",
+            "12 miesięcy",
+            "12 m/c",
+            "12 miesięcy z możliwością przedłużenia o kolejne 12 mc",
+            "operat zlecany przez bank"
+          ]
+        },
+        "09_zaświadczenie ze spółdzielni": {
+          "field_type": "WYMÓG",
+          "description": "Ważność zaświadczenia ze spółdzielni",
+          "all_options": [
+            "nie",
+            "30 dni",
+            "60 dni",
+            "90 dni",
+            "bez terminu"
+          ]
+        },
+        "10_informacja o zadłużeniu zbywcy": {
+          "field_type": "WYMÓG",
+          "description": "Ważność informacji o zadłużeniu",
+          "all_options": [
+            "30 dni",
+            "30 dni (do wniosku ważne jest zaświadczenie)",
+            "45 dni",
+            "60 dni",
+            "90 dni",
+            "aktualne jako warunek uruchomienia kredytu"
+          ]
+        },
+        "11_wypis i wyrys": {
+          "field_type": "WYMÓG",
+          "description": "Ważność wypisu i wyrysu z ewidencji gruntów",
+          "all_options": [
+            "nie wymagany (informacje w operacie)",
+            "niewymagane",
+            "60 dni",
+            "90 dni",
+            "nie starszy niż 3 miesiące",
+            "12 miesięcy",
+            "12 miesięcy (lub 12 m/c deweloper)",
+            "180 dni",
+            "musi potwierdzać stan aktualny"
+          ]
+        },
+        "12_oświadczenie inwestora zastępczego": {
+          "field_type": "WYMÓG",
+          "description": "Ważność oświadczenia inwestora zastępczego",
+          "all_options": [
+            "niewymagane",
+            "brak druku",
+            "30 dni",
+            "60 dni"
+          ]
+        },
+        "13_kosztorys budowlany": {
+          "field_type": "WYMÓG",
+          "description": "Wymóg dotyczący kosztorysu",
+          "all_options": [
+            "na druku bankowym",
+            "na druku banku",
+            "bez terminu"
+          ]
+        },
+        "14_wyciąg z ROR": {
+          "field_type": "WYMÓG",
+          "description": "Wymagania dot. wyciągów bankowych",
+          "all_options": [
+            "6 wpływów wynagrodzenia",
+            "6 pełnych wyciągów potwierdzających wpływy",
+            "30 dni",
+            "30 dni (potwierdzenie wpływów)",
+            "musi być aktualny z ostatnich 3 miesięcy",
+            "potwierdzenia wszytkich wpływów z 6 miesięcy",
+            "potwierdzenia wpływów lub pełne wyciągi",
+            "same wpływy z wynagrodzenia o pracę",
+            "wpływy z 6 miesięcy",
+            "wyciąg za 30 dni + dwa wpływy wynagrodzenia"
+          ]
+        },
+        "15_ważność decyzji kredytowej": {
+          "field_type": "WYMÓG",
+          "description": "Ważność decyzji kredytowej",
+          "all_options": [
+            "20 dni",
+            "30 dni",
+            "30 dni (maksymalnie 90 dni)",
+            "36 dni",
+            "40 dni",
+            "45 dni",
+            "60 dni",
+            "79 dni",
+            "oprocentowanie zmienne - 90 dni, oprocentowanie stałe - 30 dni"
+          ]
+        },
+        "16_ważność umowy kredytowej": {
+          "field_type": "WYMÓG",
+          "description": "Termin na uruchomienie kredytu",
+          "all_options": [
+            "60 dni",
+            "60 dni (uruchomienie od dnia podpisania umowy)",
+            "70 dni kalendarzowych od podpisania umowy",
+            "90 dni",
+            "90 dni (uruchomienie od podpisania)",
+            "90 dni kalendarzowych od popisania umowy",
+            "kredyt musi być uruchomiony w ciągu 60 dni od wygenerowania umowy",
+            "termin na umowie kredytowej",
+            "w zależności od dat wypłat zawartych w akcie notarialnym",
+            "czas na uruchomienie: oprocentowanie zmienne - 180 dni, stałe - 60 dni"
+          ]
+        }
+      }
+    }
+  },
+  "summary": {
+    "total_parameters_analyzed": 87,
+    "wymóg_parameters": 68,
+    "jakość_parameters": 19,
+    "key_insights": {
+      "wymóg_categories": [
+        "02_kredytobiorca - wszystkie parametry (7)",
+        "03_źródło dochodu - wszystkie parametry (20)",
+        "04_cel kredytu - wszystkie parametry (24)",
+        "05_zabezpieczenia - wszystkie parametry (2)",
+        "08_ważność dokumentów - wszystkie parametry (16)",
+        "Wybrane z 01_parametry kredytu: LTV, wkład własny, limit kredytów (4)"
+      ],
+      "jakość_categories": [
+        "01_parametry kredytu - większość parametrów (12)",
+        "06_wycena - wszystkie parametry (2)",
+        "07_ubezpieczenia - wszystkie parametry (5)"
+      ],
+      "explanation": {
+      "explanation": {
+        "wymóg": "Parametry decydujące o KWALIFIKACJI klienta do otrzymania kredytu - jeśli klient nie spełnia wymogu, bank odrzuci wniosek lub nie będzie mógł sfinansować danego celu",
+        "jakość": "Parametry określające WARUNKI OFERTY - klient może otrzymać kredyt, ale parametry te wpływają na atrakcyjność oferty (koszt, elastyczność, dodatkowe korzyści)"
+      }
+    }
+  }
+}
