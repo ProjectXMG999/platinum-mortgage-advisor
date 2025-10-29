@@ -1,0 +1,55 @@
+{
+  "timestamp": "2025-10-29T14:51:21.965940",
+  "measurements": [
+    {
+      "operation": "Ładowanie bazy wiedzy",
+      "elapsed_seconds": 0.329,
+      "status": "success"
+    },
+    {
+      "operation": "Ładowanie klasyfikacji parametrów",
+      "elapsed_seconds": 0.0,
+      "status": "success"
+    },
+    {
+      "operation": "Formatowanie kontekstu dla AI",
+      "elapsed_seconds": 0.001,
+      "status": "success"
+    },
+    {
+      "operation": "Tworzenie promptu walidacyjnego",
+      "elapsed_seconds": 0.0,
+      "status": "success"
+    },
+    {
+      "operation": "API Call: ETAP 1 (walidacja)",
+      "elapsed_seconds": 57.624,
+      "status": "success"
+    },
+    {
+      "operation": "Parsowanie JSON z ETAP 1",
+      "elapsed_seconds": 0.0,
+      "status": "success"
+    },
+    {
+      "operation": "Tworzenie promptu rankingowego",
+      "elapsed_seconds": 0.0,
+      "status": "success"
+    },
+    {
+      "operation": "API Call: ETAP 2 (ranking)",
+      "elapsed_seconds": 64.232,
+      "status": "success"
+    }
+  ],
+  "summary": {
+    "total_time_seconds": 122.186,
+    "initialization_time": 0.33,
+    "etap1_time": 57.624,
+    "etap2_time": 64.232,
+    "target_time": 15.0,
+    "within_target": false,
+    "excess_time": 107.186,
+    "qualified_banks_count": 11
+  }
+}

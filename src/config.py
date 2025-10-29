@@ -11,7 +11,7 @@ load_dotenv()
 AZURE_OPENAI_API_KEY = "GAbqj97MHveLyKaLpDeDhsuJpMG9nRi5iqnsgFYVZgzPH19gpjsAJQQJ99BFACfhMk5XJ3w3AAABACOGIGov"
 AZURE_OPENAI_ENDPOINT = "https://stormwhirlpool.openai.azure.com/"
 AZURE_OPENAI_API_VERSION = "2024-12-01-preview"
-AZURE_OPENAI_DEPLOYMENT_NAME = "gpt-4.1"  # Nazwa wdrożenia modelu
+AZURE_OPENAI_DEPLOYMENT_NAME = "o4-mini"  # Zmiana na o4-mini (szybszy niż gpt-4.1)
 
 # Ścieżki do plików
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")

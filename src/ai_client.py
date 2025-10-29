@@ -1,9 +1,10 @@
 """
 Klient do komunikacji z Azure OpenAI
 """
-from openai import AzureOpenAI
+from openai import AzureOpenAI, AsyncAzureOpenAI
 from typing import List, Dict, Tuple
 import json
+import asyncio
 from src import config
 
 
@@ -13,6 +14,11 @@ class AIClient:
     def __init__(self):
         """Inicjalizacja klienta Azure OpenAI"""
         self.client = AzureOpenAI(
+            api_version=config.AZURE_OPENAI_API_VERSION,
+            azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
+            api_key=config.AZURE_OPENAI_API_KEY,
+        )
+        self.async_client = AsyncAzureOpenAI(
             api_version=config.AZURE_OPENAI_API_VERSION,
             azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
             api_key=config.AZURE_OPENAI_API_KEY,
@@ -554,11 +560,577 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
             print(f"⚠️ Błąd parsowania JSON z etapu 1: {e}")
             return response, {}
     
+    async def validate_single_bank_async(
+        self,
+        bank_name: str,
+        bank_data: Dict,
+        user_query: str,
+        deployment_name: str = None
+    ) -> Dict:
+        """
+        ASYNC: Walidacja pojedynczego banku (WYMOGI)
+        
+        Args:
+            bank_name: Nazwa banku
+            bank_data: Dane banku z knowledge base
+            user_query: Profil klienta
+            deployment_name: Opcjonalny model do użycia (domyślnie self.deployment_name)
+            
+        Returns:
+            Dict z wynikiem walidacji dla tego banku
+        """
+        # Krótszy prompt dla pojedynczego banku
+        validation_prompt = f"""Jesteś ekspertem ds. produktów hipotecznych w Platinum Financial.
+
+🎯 ZADANIE: Sprawdź czy bank **{bank_name}** SPEŁNIA wszystkie WYMOGI klienta.
+
+📋 Sprawdzasz TYLKO parametry typu WYMÓG (eliminatory) - 78% wszystkich parametrów.
+
+**WYMOGI do sprawdzenia:**
+- 02_kredytobiorca (7 WYMOGÓW): wiek, liczba wnioskodawców, związek nieformalny, właściciele, rozdzielność, cudzoziemiec
+- 03_źródło dochodu (20 WYMOGÓW): wszystkie typy umów i dochodów
+- 04_cel kredytu (24 WYMOGI): wszystkie typy transakcji
+- 05_zabezpieczenie (14 WYMOGÓW): typy nieruchomości, lokalizacja, stan
+- 06_ocena zdolności (13 WYMOGÓW): metody kalkulacji, współczynniki
+
+**FORMAT ODPOWIEDZI (JSON):**
+{{
+  "bank_name": "{bank_name}",
+  "status": "QUALIFIED" lub "DISQUALIFIED",
+  "spelnione_wymogi": ["wymóg1", "wymóg2", ...],
+  "niespelnione_wymogi": ["wymóg1: powód", "wymóg2: powód", ...],
+  "kluczowe_problemy": ["problem1", "problem2"] (jeśli DISQUALIFIED),
+  "notatki": "dodatkowe uwagi"
+}}
+
+⚠️ Jeśli choć JEDEN WYMÓG nie jest spełniony → status = "DISQUALIFIED"
+✅ Jeśli WSZYSTKIE WYMOGI są spełnione → status = "QUALIFIED"
+"""
+
+        bank_context = json.dumps(bank_data, ensure_ascii=False, indent=2)
+        
+        messages = [
+            {"role": "system", "content": validation_prompt},
+            {"role": "system", "content": f"DANE BANKU {bank_name}:\n\n{bank_context}"},
+            {"role": "user", "content": f"PROFIL KLIENTA:\n\n{user_query}"}
+        ]
+        
+        # Użyj podanego modelu lub domyślnego
+        model = deployment_name or self.deployment_name
+        
+        # Przygotuj parametry zgodnie z typem modelu
+        completion_params = {
+            "model": model,
+            "messages": messages,
+        }
+        
+        model_lower = model.lower()
+        if "gpt-5" in model_lower or "o4" in model_lower or "o1" in model_lower:
+            completion_params["temperature"] = 1.0
+            completion_params["max_completion_tokens"] = 2000  # Mniejsze dla pojedynczego banku
+        else:
+            completion_params["temperature"] = 0.1
+            completion_params["max_tokens"] = 2000
+        
+        try:
+            response = await self.async_client.chat.completions.create(**completion_params)
+            result_text = response.choices[0].message.content
+            
+            # Agresywne czyszczenie dla JSON
+            result_clean = result_text.strip()
+            
+            # Usuń markdown code blocks
+            if result_clean.startswith("```json"):
+                result_clean = result_clean[7:]
+            elif result_clean.startswith("```"):
+                result_clean = result_clean[3:]
+            
+            if result_clean.endswith("```"):
+                result_clean = result_clean[:-3]
+            
+            result_clean = result_clean.strip()
+            
+            # Próba parsowania
+            try:
+                result_dict = json.loads(result_clean)
+                return result_dict
+            except json.JSONDecodeError:
+                # Jeśli fail, spróbuj znaleźć JSON w tekście
+                import re
+                json_match = re.search(r'\{[\s\S]*\}', result_clean)
+                if json_match:
+                    try:
+                        result_dict = json.loads(json_match.group(0))
+                        return result_dict
+                    except:
+                        pass
+                
+                # Last resort - zwróć pustą odpowiedź z informacją o błędzie
+                print(f"⚠️ Nie można sparsować JSONa dla {bank_name}, zwracam pusty wynik")
+                print(f"   Pierwsze 200 znaków: {result_text[:200]}")
+                return {
+                    "bank_name": bank_name,
+                    "status": "ERROR",
+                    "error": "JSON parsing failed",
+                    "raw_response": result_text[:500]
+                }
+            
+        except Exception as e:
+            print(f"⚠️ Błąd walidacji {bank_name}: {e}")
+            return {
+                "bank_name": bank_name,
+                "status": "ERROR",
+                "error": str(e)
+            }
+    
+    async def validate_requirements_async(
+        self,
+        user_query: str,
+        knowledge_base: Dict,
+        deployment_name: str = None
+    ) -> Tuple[str, Dict]:
+        """
+        ASYNC PARALLEL: Walidacja WYMOGÓW dla wszystkich banków równolegle
+        
+        Args:
+            user_query: Zapytanie użytkownika (profil klienta)
+            knowledge_base: Pełna baza wiedzy (Dict z listą products)
+            deployment_name: Opcjonalny model do użycia
+            
+        Returns:
+            Tuple (odpowiedź JSON jako string, parsed dict)
+        """
+        print("🔍 ETAP 1: Walidacja WYMOGÓW (PARALLEL MODE)...")
+        
+        # Przygotuj listę tasków dla każdego banku
+        tasks = []
+        for product in knowledge_base.get("products", []):
+            bank_name = product.get("bank_name")
+            if bank_name:
+                task = self.validate_single_bank_async(
+                    bank_name=bank_name,
+                    bank_data=product,
+                    user_query=user_query,
+                    deployment_name=deployment_name
+                )
+                tasks.append(task)
+        
+        # Wykonaj wszystkie równolegle
+        print(f"⚡ Uruchamiam {len(tasks)} równoległych requestów...")
+        results = await asyncio.gather(*tasks)
+        
+        # Połącz wyniki
+        qualified_banks = []
+        disqualified_banks = []
+        
+        for result in results:
+            if result.get("status") == "QUALIFIED":
+                qualified_banks.append(result)
+            elif result.get("status") == "DISQUALIFIED":
+                disqualified_banks.append(result)
+            # Ignoruj ERROR results
+        
+        # Stwórz finalny JSON
+        final_result = {
+            "etap": "1_WALIDACJA_WYMOGÓW",
+            "qualified_banks": qualified_banks,
+            "disqualified_banks": disqualified_banks,
+            "summary": {
+                "total_banks": len(results),
+                "qualified": len(qualified_banks),
+                "disqualified": len(disqualified_banks)
+            }
+        }
+        
+        result_json = json.dumps(final_result, ensure_ascii=False, indent=2)
+        print(f"✓ Zakwalifikowane: {len(qualified_banks)}/{len(results)} banków")
+        
+        return result_json, final_result
+    
+    async def rank_single_bank_async(
+        self,
+        bank_name: str,
+        bank_data: Dict,
+        user_query: str,
+        deployment_name: str = None
+    ) -> Dict:
+        """
+        ASYNC: Ocena jakości pojedynczego banku (19 parametrów JAKOŚCI)
+        
+        Args:
+            bank_name: Nazwa banku
+            bank_data: Dane banku z knowledge base
+            user_query: Profil klienta
+            deployment_name: Opcjonalny model do użycia
+            
+        Returns:
+            Dict z oceną jakości banku (0-100 punktów)
+        """
+        # Krótszy prompt dla pojedynczego banku
+        ranking_prompt = f"""Jesteś ekspertem ds. produktów hipotecznych w Platinum Financial.
+
+🎯 ZADANIE: Oceń JAKOŚĆ oferty banku **{bank_name}** dla klienta (system punktowy 0-100).
+
+📋 PARAMETRY JAKOŚCI (19 parametrów oceniających):
+
+**1. KOSZT KREDYTU (35 punktów)**
+- Opłata za wcześniejszą spłatę (0-10): 0% = 10, 1% = 7, 2% = 4, 3% = 0
+- Ubezpieczenie pomostowe (0-8): brak = 8, +0.5% = 5, +1% = 2, +1.3% = 0
+- Ubezpieczenie niskiego wkładu (0-7): brak = 7, +0.2% = 4, +0.25% = 0
+- Koszt operatu (0-5): ≤400 zł = 5, 401-700 = 3, >700 = 0
+- Kredyt EKO (0-5): -0.2 p.p. = 5, -0.1 = 3, -0.05 = 2, brak = 0
+
+**2. ELASTYCZNOŚĆ PRODUKTU (25 punktów)**
+- Maksymalna kwota kredytu (0-8): ≥4 mln = 8, 3-4 mln = 6, 2-3 mln = 4, <2 mln = 2
+- Okres kredytowania (0-7): 420 mc = 7, 360 mc = 5, 300 mc = 3
+- Karencja (0-5): do 60 mc = 5, do 24 mc = 3, brak = 0
+- Typ rat (0-5): równe i malejące = 5, tylko równe = 2
+
+**3. WYGODA PROCESU (20 punktów)**
+- Rodzaj operatu (0-10): wewnętrzny = 10, oba = 7, zewnętrzny = 3
+- Termin ważności decyzji (0-5): 90 dni = 5, 60 dni = 3, 30 dni = 1
+- Dostępność walut (0-5): PLN+EUR+inne = 5, PLN+EUR = 3, PLN = 2
+
+**4. DODATKOWE KORZYŚCI (15 punktów)**
+- Oprocentowanie stałe (0-8): 10 lat = 8, 5 lat = 5, brak = 0
+- Ubezpieczenie nieruchomości (0-4): dostępne z bonusem = 4, dostępne = 2, brak = 0
+- Ubezpieczenie od utraty pracy (0-3): dostępne = 3, brak = 0
+
+**5. PARAMETRY MAKSYMALNE (5 punktów)**
+- LTV pożyczka (0-3): 60% = 3, 50% = 2, brak = 0
+- Kwota pożyczki (0-2): ≥3 mln = 2, 1-3 mln = 1, brak = 0
+
+---
+
+📊 FORMAT ODPOWIEDZI (JSON):
+
+{{
+  "bank_name": "{bank_name}",
+  "total_score": 87,
+  "breakdown": {{
+    "koszt_kredytu": 32,
+    "elastycznosc": 23,
+    "wygoda": 17,
+    "korzysci": 11,
+    "parametry_max": 4
+  }},
+  "details": {{
+    "wczesniejsza_splata": {{"value": "0%", "points": 10}},
+    "ubezpieczenie_pomostowe": {{"value": "brak", "points": 8}},
+    "ubezpieczenie_niskiego_wkladu": {{"value": "+0.25%", "points": 0}},
+    "koszt_operatu": {{"value": "400 zł", "points": 5}},
+    "kredyt_eko": {{"value": "brak", "points": 0}},
+    "kwota_max": {{"value": "3 mln", "points": 6}},
+    "okres_kredytowania": {{"value": "420 mc", "points": 7}},
+    "karencja": {{"value": "60 mc", "points": 5}},
+    "typ_rat": {{"value": "równe i malejące", "points": 5}},
+    "rodzaj_operatu": {{"value": "wewnętrzny", "points": 10}},
+    "termin_decyzji": {{"value": "90 dni", "points": 5}},
+    "waluty": {{"value": "PLN, EUR", "points": 3}},
+    "oprocentowanie_stale": {{"value": "5 lat", "points": 5}},
+    "ubezpieczenie_nieruchomosci": {{"value": "dostępne", "points": 2}},
+    "ubezpieczenie_utraty_pracy": {{"value": "dostępne", "points": 3}},
+    "ltv_pozyczka": {{"value": "60%", "points": 3}},
+    "kwota_pozyczki": {{"value": "3 mln", "points": 2}}
+  }},
+  "kluczowe_atuty": [
+    "Brak opłaty za wcześniejszą spłatę (10/10 pkt)",
+    "Najdłuższy okres kredytowania 420 mc (7/7 pkt)",
+    "Karencja do 60 miesięcy (5/5 pkt)"
+  ],
+  "punkty_uwagi": [
+    "Brak kredytu EKO (0/5 pkt)",
+    "Ubezpieczenie niskiego wkładu +0.25% (0/7 pkt)"
+  ]
+}}
+
+⚠️ ZASADY:
+- Oceń TYLKO na podstawie danych banku
+- Przypisuj punkty DOKŁADNIE wg skali
+- Kluczowe atuty = TOP 3 najlepsze parametry (najwyższe punkty)
+- Punkty uwagi = 2-3 najgorsze parametry (najniższe punkty lub minusy)
+"""
+
+        bank_context = json.dumps(bank_data, ensure_ascii=False, indent=2)
+        
+        messages = [
+            {"role": "system", "content": ranking_prompt},
+            {"role": "system", "content": f"DANE BANKU {bank_name}:\n\n{bank_context}"},
+            {"role": "user", "content": f"PROFIL KLIENTA:\n\n{user_query}"}
+        ]
+        
+        # Użyj podanego modelu lub domyślnego
+        model = deployment_name or self.deployment_name
+        
+        # Przygotuj parametry zgodnie z typem modelu
+        completion_params = {
+            "model": model,
+            "messages": messages,
+        }
+        
+        model_lower = model.lower()
+        if "gpt-5" in model_lower or "o4" in model_lower or "o1" in model_lower:
+            completion_params["temperature"] = 1.0
+            completion_params["max_completion_tokens"] = 2500
+        else:
+            completion_params["temperature"] = 0.2
+            completion_params["max_tokens"] = 2500
+        
+        try:
+            response = await self.async_client.chat.completions.create(**completion_params)
+            result_text = response.choices[0].message.content
+            
+            # Agresywne czyszczenie dla JSON
+            result_clean = result_text.strip()
+            
+            # Usuń markdown code blocks
+            if result_clean.startswith("```json"):
+                result_clean = result_clean[7:]
+            elif result_clean.startswith("```"):
+                result_clean = result_clean[3:]
+            
+            if result_clean.endswith("```"):
+                result_clean = result_clean[:-3]
+            
+            result_clean = result_clean.strip()
+            
+            # Próba parsowania
+            try:
+                result_dict = json.loads(result_clean)
+                return result_dict
+            except json.JSONDecodeError:
+                # Jeśli fail, spróbuj znaleźć JSON w tekście
+                import re
+                json_match = re.search(r'\{[\s\S]*\}', result_clean)
+                if json_match:
+                    try:
+                        result_dict = json.loads(json_match.group(0))
+                        return result_dict
+                    except:
+                        pass
+                
+                # Last resort - zwróć domyślną ocenę
+                print(f"⚠️ Nie można sparsować JSONa oceny dla {bank_name}, zwracam wynik 50/100")
+                print(f"   Pierwsze 200 znaków: {result_text[:200]}")
+                return {
+                    "bank_name": bank_name,
+                    "total_score": 50,
+                    "breakdown": {
+                        "koszt_kredytu": 17,
+                        "elastycznosc": 12,
+                        "wygoda": 10,
+                        "korzysci": 7,
+                        "parametry_max": 2
+                    },
+                    "kluczowe_atuty": ["Ocena automatyczna - błąd parsowania"],
+                    "punkty_uwagi": ["Nie udało się sparsować odpowiedzi AI"],
+                    "error": "JSON parsing failed"
+                }
+            
+        except Exception as e:
+            print(f"⚠️ Błąd oceny {bank_name}: {e}")
+            return {
+                "bank_name": bank_name,
+                "total_score": 0,
+                "error": str(e)
+            }
+    
+    async def rank_by_quality_async(
+        self,
+        user_query: str,
+        knowledge_base: Dict,
+        qualified_banks: List[str],
+        deployment_name: str = None
+    ) -> str:
+        """
+        ASYNC PARALLEL: Ranking JAKOŚCI dla wszystkich zakwalifikowanych banków
+        
+        Args:
+            user_query: Zapytanie użytkownika (profil klienta)
+            knowledge_base: Pełna baza wiedzy (Dict z listą products)
+            qualified_banks: Lista nazw zakwalifikowanych banków
+            deployment_name: Opcjonalny model do użycia
+            
+        Returns:
+            Markdown z rankingiem TOP 4 banków
+        """
+        print(f"🏅 ETAP 2: Ranking JAKOŚCI (PARALLEL MODE - {len(qualified_banks)} banków)...")
+        
+        # Przygotuj listę tasków dla każdego banku
+        tasks = []
+        for bank_name in qualified_banks:
+            # Znajdź dane banku
+            bank_data = None
+            for product in knowledge_base.get("products", []):
+                if product.get("bank_name") == bank_name:
+                    bank_data = product
+                    break
+            
+            if bank_data:
+                task = self.rank_single_bank_async(
+                    bank_name=bank_name,
+                    bank_data=bank_data,
+                    user_query=user_query,
+                    deployment_name=deployment_name
+                )
+                tasks.append(task)
+        
+        # Wykonaj wszystkie równolegle
+        print(f"⚡ Uruchamiam {len(tasks)} równoległych requestów oceny jakości...")
+        results = await asyncio.gather(*tasks)
+        
+        # Sortuj po total_score (malejąco)
+        valid_results = [r for r in results if "error" not in r]
+        valid_results.sort(key=lambda x: x.get("total_score", 0), reverse=True)
+        
+        print(f"✓ Oceniono {len(valid_results)} banków")
+        
+        # Formatuj TOP 4 do markdown
+        markdown = self._format_ranking_markdown(valid_results[:4], user_query)
+        
+        return markdown
+    
+    def _format_ranking_markdown(self, top_banks: List[Dict], user_query: str) -> str:
+        """
+        Formatuje wyniki rankingu do markdown (TOP 4)
+        
+        Args:
+            top_banks: Lista dict z ocenami banków (max 4)
+            user_query: Profil klienta (dla kontekstu)
+            
+        Returns:
+            Markdown z pełnym rankingiem TOP 4
+        """
+        medals = ["🥇", "🥈", "🥉", "🎖️"]
+        positions = ["NAJLEPSZA OPCJA", "DRUGA OPCJA", "TRZECIA OPCJA", "CZWARTA OPCJA"]
+        
+        lines = []
+        lines.append("# 🏆 RANKING JAKOŚCI OFERT HIPOTECZNYCH")
+        lines.append("")
+        lines.append(f"*Ocena dla profilu: {user_query[:100]}...*")
+        lines.append("")
+        lines.append("="*80)
+        lines.append("")
+        
+        for i, bank in enumerate(top_banks):
+            medal = medals[i] if i < len(medals) else f"{i+1}."
+            position = positions[i] if i < len(positions) else f"OPCJA #{i+1}"
+            
+            lines.append(f"## {medal} OFERTA #{i+1}: **{bank['bank_name']}** – {position}")
+            lines.append("")
+            lines.append(f"### 📈 OCENA JAKOŚCI: **{bank['total_score']}/100 punktów**")
+            lines.append("")
+            
+            # Breakdown kategorii
+            breakdown = bank.get("breakdown", {})
+            lines.append(f"#### 💰 KOSZT KREDYTU: {breakdown.get('koszt_kredytu', 0)}/35 pkt")
+            
+            details = bank.get("details", {})
+            if details:
+                lines.append(f"- **Wcześniejsza spłata**: {details.get('wczesniejsza_splata', {}).get('value', 'N/D')} → **{details.get('wczesniejsza_splata', {}).get('points', 0)}/10 pkt**")
+                lines.append(f"- **Ubezpieczenie pomostowe**: {details.get('ubezpieczenie_pomostowe', {}).get('value', 'N/D')} → **{details.get('ubezpieczenie_pomostowe', {}).get('points', 0)}/8 pkt**")
+                lines.append(f"- **Ubezpieczenie niskiego wkładu**: {details.get('ubezpieczenie_niskiego_wkladu', {}).get('value', 'N/D')} → **{details.get('ubezpieczenie_niskiego_wkladu', {}).get('points', 0)}/7 pkt**")
+                lines.append(f"- **Koszt operatu**: {details.get('koszt_operatu', {}).get('value', 'N/D')} → **{details.get('koszt_operatu', {}).get('points', 0)}/5 pkt**")
+                lines.append(f"- **Kredyt EKO**: {details.get('kredyt_eko', {}).get('value', 'N/D')} → **{details.get('kredyt_eko', {}).get('points', 0)}/5 pkt**")
+            lines.append("")
+            
+            lines.append(f"#### 🔧 ELASTYCZNOŚĆ: {breakdown.get('elastycznosc', 0)}/25 pkt")
+            if details:
+                lines.append(f"- **Kwota kredytu**: {details.get('kwota_max', {}).get('value', 'N/D')} → **{details.get('kwota_max', {}).get('points', 0)}/8 pkt**")
+                lines.append(f"- **Okres kredytowania**: {details.get('okres_kredytowania', {}).get('value', 'N/D')} → **{details.get('okres_kredytowania', {}).get('points', 0)}/7 pkt**")
+                lines.append(f"- **Karencja**: {details.get('karencja', {}).get('value', 'N/D')} → **{details.get('karencja', {}).get('points', 0)}/5 pkt**")
+                lines.append(f"- **Typ rat**: {details.get('typ_rat', {}).get('value', 'N/D')} → **{details.get('typ_rat', {}).get('points', 0)}/5 pkt**")
+            lines.append("")
+            
+            lines.append(f"#### ⚡ WYGODA PROCESU: {breakdown.get('wygoda', 0)}/20 pkt")
+            if details:
+                lines.append(f"- **Rodzaj operatu**: {details.get('rodzaj_operatu', {}).get('value', 'N/D')} → **{details.get('rodzaj_operatu', {}).get('points', 0)}/10 pkt**")
+                lines.append(f"- **Termin decyzji**: {details.get('termin_decyzji', {}).get('value', 'N/D')} → **{details.get('termin_decyzji', {}).get('points', 0)}/5 pkt**")
+                lines.append(f"- **Waluty**: {details.get('waluty', {}).get('value', 'N/D')} → **{details.get('waluty', {}).get('points', 0)}/5 pkt**")
+            lines.append("")
+            
+            lines.append(f"#### 🎁 DODATKOWE KORZYŚCI: {breakdown.get('korzysci', 0)}/15 pkt")
+            if details:
+                lines.append(f"- **Oprocentowanie stałe**: {details.get('oprocentowanie_stale', {}).get('value', 'N/D')} → **{details.get('oprocentowanie_stale', {}).get('points', 0)}/8 pkt**")
+                lines.append(f"- **Ubezpieczenie nieruchomości**: {details.get('ubezpieczenie_nieruchomosci', {}).get('value', 'N/D')} → **{details.get('ubezpieczenie_nieruchomosci', {}).get('points', 0)}/4 pkt**")
+                lines.append(f"- **Ubezpieczenie utraty pracy**: {details.get('ubezpieczenie_utraty_pracy', {}).get('value', 'N/D')} → **{details.get('ubezpieczenie_utraty_pracy', {}).get('points', 0)}/3 pkt**")
+            lines.append("")
+            
+            lines.append(f"#### 📊 PARAMETRY MAX: {breakdown.get('parametry_max', 0)}/5 pkt")
+            if details:
+                lines.append(f"- **LTV pożyczka**: {details.get('ltv_pozyczka', {}).get('value', 'N/D')} → **{details.get('ltv_pozyczka', {}).get('points', 0)}/3 pkt**")
+                lines.append(f"- **Kwota pożyczki**: {details.get('kwota_pozyczki', {}).get('value', 'N/D')} → **{details.get('kwota_pozyczki', {}).get('points', 0)}/2 pkt**")
+            lines.append("")
+            
+            # Kluczowe atuty
+            atuty = bank.get("kluczowe_atuty", [])
+            if atuty:
+                lines.append("### ✨ KLUCZOWE ATUTY:")
+                for j, atut in enumerate(atuty[:3], 1):
+                    lines.append(f"{j}. {atut}")
+                lines.append("")
+            
+            # Punkty uwagi
+            uwagi = bank.get("punkty_uwagi", [])
+            if uwagi:
+                lines.append("### ⚠️ PUNKTY UWAGI:")
+                for j, uwaga in enumerate(uwagi, 1):
+                    lines.append(f"{j}. {uwaga}")
+                lines.append("")
+            
+            # Różnica vs #1
+            if i > 0:
+                diff = top_banks[0]["total_score"] - bank["total_score"]
+                lines.append(f"### 📉 RÓŻNICA vs #{1}:")
+                lines.append(f"- **Punkty**: {bank['total_score']} vs {top_banks[0]['total_score']} (#{1}) = **-{diff} pkt**")
+                lines.append("")
+            
+            lines.append("---")
+            lines.append("")
+        
+        # Tabela porównawcza
+        if len(top_banks) > 1:
+            lines.append("## 📊 TABELA PORÓWNAWCZA")
+            lines.append("")
+            lines.append("| Parametr | " + " | ".join([f"{medals[i]} {b['bank_name']}" for i, b in enumerate(top_banks)]) + " |")
+            lines.append("|----------|" + "|".join(["----------"] * len(top_banks)) + "|")
+            lines.append("| **TOTAL** | " + " | ".join([f"**{b['total_score']}/100**" for b in top_banks]) + " |")
+            
+            breakdown_keys = [
+                ("Koszt kredytu", "koszt_kredytu"),
+                ("Elastyczność", "elastycznosc"),
+                ("Wygoda", "wygoda"),
+                ("Korzyści", "korzysci"),
+                ("Parametry MAX", "parametry_max")
+            ]
+            
+            for label, key in breakdown_keys:
+                values = [str(b.get("breakdown", {}).get(key, 0)) for b in top_banks]
+                lines.append(f"| {label} | " + " | ".join(values) + " |")
+            
+            lines.append("")
+        
+        # Rekomendacja końcowa
+        if top_banks:
+            winner = top_banks[0]
+            lines.append("## 🎯 REKOMENDACJA KOŃCOWA")
+            lines.append("")
+            lines.append(f"**Najlepsza opcja**: **{winner['bank_name']}** zdobywa **{winner['total_score']}/100 punktów**")
+            lines.append("")
+            
+            if len(top_banks) > 1:
+                lines.append(f"**Oszczędność vs #{len(top_banks)}**: ~{winner['total_score'] - top_banks[-1]['total_score']} punktów przewagi")
+            
+            lines.append("")
+        
+        return "\n".join(lines)
+    
     def rank_by_quality(
         self,
         user_query: str,
         knowledge_base_context: str,
-        qualified_banks: List[str]
+        qualified_banks: List[str],
+        deployment_name: str = None
     ) -> str:
         """
         ETAP 2: Ranking JAKOŚCI - punktacja zakwalifikowanych banków
@@ -567,6 +1139,7 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
             user_query: Zapytanie użytkownika (profil klienta)
             knowledge_base_context: Kontekst z bazy wiedzy
             qualified_banks: Lista banków zakwalifikowanych z etapu 1
+            deployment_name: Opcjonalny model do użycia
             
         Returns:
             Ranking TOP 4 banków z oceną punktową
@@ -580,38 +1153,74 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
         ]
         
         print(f"🏅 ETAP 2: Ranking JAKOŚCI ({len(qualified_banks)} banków)...")
-        response = self.create_chat_completion(
-            messages=messages,
-            temperature=0.2,  # Trochę wyższa dla kreatywności w opisach
-            max_tokens=6000
-        )
+        
+        # Użyj podanego modelu lub domyślnego
+        original_deployment = self.deployment_name
+        if deployment_name:
+            self.deployment_name = deployment_name
+        
+        try:
+            response = self.create_chat_completion(
+                messages=messages,
+                temperature=0.2,  # Trochę wyższa dla kreatywności w opisach
+                max_tokens=6000
+            )
+        finally:
+            # Przywróć oryginalny model
+            self.deployment_name = original_deployment
         
         return response
     
     def query_two_stage(
         self,
         user_query: str,
-        knowledge_base_context: str
+        knowledge_base_context: str,
+        etap1_model: str = None,
+        etap2_model: str = None,
+        use_async: bool = True,
+        knowledge_base_dict: Dict = None
     ) -> Dict[str, str]:
         """
         Główna metoda - dwuetapowe przetwarzanie zapytania
         
         Args:
             user_query: Zapytanie użytkownika
-            knowledge_base_context: Kontekst z bazy wiedzy
+            knowledge_base_context: Kontekst z bazy wiedzy (string)
+            etap1_model: Model do ETAP 1 (None = domyślny)
+            etap2_model: Model do ETAP 2 (None = domyślny)
+            use_async: Czy używać async parallel processing
+            knowledge_base_dict: Pełna baza wiedzy jako Dict (dla async)
             
         Returns:
             Dict z wynikami obu etapów
         """
         print("\n" + "="*80)
         print("🚀 DWUETAPOWY SYSTEM DOPASOWANIA KREDYTÓW")
+        if use_async:
+            print("⚡ Tryb: ASYNC PARALLEL")
         print("="*80 + "\n")
         
         # ETAP 1: Walidacja WYMOGÓW
-        validation_response, validation_data = self.validate_requirements(
-            user_query=user_query,
-            knowledge_base_context=knowledge_base_context
-        )
+        if use_async and knowledge_base_dict:
+            # Async parallel processing
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                validation_response, validation_data = loop.run_until_complete(
+                    self.validate_requirements_async(
+                        user_query=user_query,
+                        knowledge_base=knowledge_base_dict,
+                        deployment_name=etap1_model
+                    )
+                )
+            finally:
+                loop.close()
+        else:
+            # Sequential processing (stara metoda)
+            validation_response, validation_data = self.validate_requirements(
+                user_query=user_query,
+                knowledge_base_context=knowledge_base_context
+            )
         
         if not validation_data:
             print("❌ Błąd w etapie 1 - nie można kontynuować")
@@ -639,12 +1248,30 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
                 "qualified_banks": []
             }
         
-        # ETAP 2: Ranking JAKOŚCI (nawet dla 1 banku - dalej oceniamy jakość!)
-        ranking_response = self.rank_by_quality(
-            user_query=user_query,
-            knowledge_base_context=knowledge_base_context,
-            qualified_banks=qualified
-        )
+        # ETAP 2: Ranking JAKOŚCI
+        if use_async and knowledge_base_dict:
+            # Async parallel processing dla ETAP 2
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                ranking_response = loop.run_until_complete(
+                    self.rank_by_quality_async(
+                        user_query=user_query,
+                        knowledge_base=knowledge_base_dict,
+                        qualified_banks=qualified,
+                        deployment_name=etap2_model
+                    )
+                )
+            finally:
+                loop.close()
+        else:
+            # Sequential processing (stara metoda)
+            ranking_response = self.rank_by_quality(
+                user_query=user_query,
+                knowledge_base_context=knowledge_base_context,
+                qualified_banks=qualified,
+                deployment_name=etap2_model
+            )
         
         print("\n" + "="*80)
         print("✅ ANALIZA ZAKOŃCZONA")
@@ -679,12 +1306,26 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
             Odpowiedź od modelu
         """
         try:
-            response = self.client.chat.completions.create(
-                model=self.deployment_name,
-                messages=messages,
-                temperature=temperature or config.TEMPERATURE,
-                max_tokens=max_tokens or config.MAX_TOKENS
-            )
+            # GPT-5 używa max_completion_tokens zamiast max_tokens
+            completion_params = {
+                "model": self.deployment_name,
+                "messages": messages,
+            }
+            
+            # Modele nowej generacji (GPT-5, O-series) wymagają temperature=1
+            model_lower = self.deployment_name.lower()
+            if "gpt-5" in model_lower or "o4" in model_lower or "o1" in model_lower:
+                completion_params["temperature"] = 1.0  # Wymagane dla nowych modeli
+            else:
+                completion_params["temperature"] = temperature or config.TEMPERATURE
+            
+            # Dodaj odpowiedni parametr w zależności od modelu
+            if "gpt-5" in model_lower or "gpt-4.1" in model_lower or "o4" in model_lower or "o1" in model_lower:
+                completion_params["max_completion_tokens"] = max_tokens or config.MAX_TOKENS
+            else:
+                completion_params["max_tokens"] = max_tokens or config.MAX_TOKENS
+            
+            response = self.client.chat.completions.create(**completion_params)
             
             return response.choices[0].message.content
         

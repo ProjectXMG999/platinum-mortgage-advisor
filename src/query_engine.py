@@ -2,6 +2,7 @@
 Silnik zapytań - główna logika wyszukiwania produktów
 """
 from typing import Dict, List
+import asyncio
 from src.data_processor import DataProcessor
 from src.ai_client import AIClient
 
@@ -27,12 +28,21 @@ class QueryEngine:
         print("✓ System gotowy do pracy!")
         print("="*80 + "\n")
     
-    def process_query(self, user_query: str) -> str:
+    def process_query(
+        self, 
+        user_query: str,
+        etap1_model: str = None,
+        etap2_model: str = None,
+        use_async: bool = True
+    ) -> str:
         """
         Przetwarza zapytanie użytkownika (DWUETAPOWY SYSTEM)
         
         Args:
             user_query: Zapytanie użytkownika w języku naturalnym
+            etap1_model: Model do ETAP 1 (walidacja), None = domyślny
+            etap2_model: Model do ETAP 2 (ranking), None = domyślny
+            use_async: Czy używać async parallel processing (True = szybsze)
             
         Returns:
             Odpowiedź z rekomendacjami produktów
@@ -45,7 +55,11 @@ class QueryEngine:
         # Dwuetapowe przetwarzanie
         result = self.ai_client.query_two_stage(
             user_query=user_query,
-            knowledge_base_context=knowledge_context
+            knowledge_base_context=knowledge_context,
+            etap1_model=etap1_model,
+            etap2_model=etap2_model,
+            use_async=use_async,
+            knowledge_base_dict=self.data_processor.knowledge_base  # Dodajemy pełny dict dla async
         )
         
         if result.get("error"):
