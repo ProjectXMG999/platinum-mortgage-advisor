@@ -3,6 +3,14 @@ Aplikacja Streamlit - Wyszukiwarka kredytów hipotecznych Platinum Financial
 Integracja z systemem dwupromptowym (AI)
 """
 import streamlit as st
+
+# Konfiguracja strony - MUSI BYĆ PIERWSZĄ KOMENDĄ STREAMLIT
+st.set_page_config(
+    page_title="Wyszukiwarka kredytów hipotecznych - Platinum Financial", 
+    page_icon="platinum.png",
+    layout="wide"
+)
+
 import json
 import sys
 import os
@@ -16,8 +24,12 @@ if src_path not in sys.path:
 # Import z pełną ścieżką dla pewności
 try:
     from query_engine import QueryEngine
+    from input_mapper import InputMapper
+    from models.customer_profile import CUSTOMER_PROFILE_TEMPLATE
 except ImportError:
     from src.query_engine import QueryEngine
+    from src.input_mapper import InputMapper
+    from src.models.customer_profile import CUSTOMER_PROFILE_TEMPLATE
 
 # Lista banków
 banks = [
@@ -49,18 +61,12 @@ bank_logos = {
     "VELO BANK": "banks/velo-aiuy6v.png",
 }
 
-# Konfiguracja strony
-st.set_page_config(
-    page_title="Wyszukiwarka kredytów hipotecznych - Platinum Financial", 
-    page_icon="platinum.png",
-    layout="wide"
-)
-
 # Inicjalizacja session state
 if 'engine' not in st.session_state:
     with st.spinner('Inicjalizacja systemu AI...'):
         try:
             st.session_state.engine = QueryEngine("data/processed/knowledge_base.json")
+            st.session_state.input_mapper = InputMapper(st.session_state.engine.ai_client)
             st.session_state.engine_ready = True
         except Exception as e:
             st.session_state.engine_ready = False
@@ -77,6 +83,12 @@ if 'qualified_banks' not in st.session_state:
     
 if 'disqualified_banks' not in st.session_state:
     st.session_state.disqualified_banks = []
+
+if 'customer_profile' not in st.session_state:
+    st.session_state.customer_profile = None
+
+if 'mapped_profile_json' not in st.session_state:
+    st.session_state.mapped_profile_json = None
 
 
 def parse_validation_json(json_text):
@@ -229,6 +241,62 @@ col1, col2, col3 = st.columns([2, 3, 3])
 with col1:
     st.markdown("### 📝 Profil Klienta")
     
+    # Przycisk pomocy - szablon
+    with st.expander("📖 **PRZEWODNIK: Jakie dane mogę podać?**", expanded=False):
+        st.markdown("""
+        ### ⚠️ **WYMAGANE MINIMUM:**
+        1. **Wiek** kredytobiorcy (np. 45 lat)
+        2. **Typ dochodu** (np. UoP, działalność, emerytura)
+        3. **Staż pracy** (np. 5 lat)
+        4. **Cel kredytu** (np. zakup mieszkania)
+        5. **Wartość nieruchomości** lub **kwota kredytu**
+        
+        ### 💡 **OPCJONALNE (podaj jeśli dotyczy):**
+        
+        **👤 Dane osobowe:**
+        - Wiek współkredytobiorcy
+        - Obywatelstwo (cudzoziemiec?)
+        - Status związku (małżeństwo, konkubinat)
+        
+        **💰 Dochody:**
+        - Wysokość dochodu miesięcznego
+        - Dodatkowe źródła dochodu
+        - Typ umowy współkredytobiorcy
+        
+        **💳 Parametry kredytu:**
+        - Wkład własny (kwota lub %)
+        - LTV
+        - Okres kredytowania (lata/miesiące)
+        - Waluta (PLN/EUR)
+        - Karencja
+        - Kredyt EKO
+        - Liczba istniejących kredytów
+        
+        **🏡 Nieruchomość:**
+        - Typ (mieszkanie/dom/działka)
+        - Lokalizacja
+        - Powierzchnia
+        - Powierzchnia działki
+        - Transakcja rodzinna?
+        - Zabezpieczenie osoby trzeciej?
+        
+        ### 📝 **Przykłady typów dochodu:**
+        - Umowa o pracę (określona/nieokreślona)
+        - Działalność gospodarcza (KPiR/pełna/ryczałt)
+        - Emerytura / Renta
+        - Kontrakt menadżerski
+        - Umowa zlecenie / o dzieło
+        - Dochody z najmu
+        
+        ### 🎯 **Przykłady celów:**
+        - Zakup mieszkania/domu
+        - Budowa domu (gospodarczy/zlecony)
+        - Zakup działki (budowlana/rolna/rekreacyjna)
+        - Refinansowanie
+        - Konsolidacja
+        - Cel dowolny (pożyczka hipoteczna)
+        """)
+    
     # Przykładowe profile
     example_profiles = {
         "Wybierz przykład...": "",
@@ -236,66 +304,119 @@ with col1:
 Współkredytobiorca: Anna Kowalska, 42 lata
 
 DOCHODY:
-- Jan: Umowa o pracę na czas nieokreślony, staż 5 lat
-- Anna: Umowa o pracę na czas nieokreślony, staż 3 lata
+- Jan: Umowa o pracę na czas nieokreślony, staż 5 lat, dochód 8000 zł/mc
+- Anna: Umowa o pracę na czas nieokreślony, staż 3 lata, dochód 6000 zł/mc
 
 CEL: Zakup mieszkania na rynku wtórnym w Warszawie
 
 PARAMETRY:
-- Cena mieszkania: 800,000 zł
+- Wartość mieszkania: 800,000 zł
 - Wkład własny: 160,000 zł (20%)
 - Kwota kredytu: 640,000 zł
 - LTV: 80%
 - Okres: 25 lat (300 miesięcy)
 
+NIERUCHOMOŚĆ:
+- Typ: mieszkanie
+- Lokalizacja: Warszawa
+- Powierzchnia: 75 m2
+
 DODATKOWE:
+- Status: małżeństwo
 - Obywatele Polski
-- Związek małżeński
 - Brak innych kredytów hipotecznych
 - Zainteresowani kredytem EKO""",
         
-        "👴 Senior (68 lat, działka rekreacyjna)": """Klient: Senior, 68 lat (emeryt)
-Współkredytobiorca: Małżonka, 65 lat (emerytka)
+        "👴 Senior (68 lat, działka rekreacyjna)": """Klient: Senior, 68 lat
+Współkredytobiorca: Małżonka, 65 lat
 
 DOCHODY:
-- Emerytura: 9,000 zł/mc łącznie
+- Klient: Emerytura, 5000 zł/mc
+- Współkredytobiorca: Emerytura, 4000 zł/mc
 
-CEL: Zakup działki rekreacyjnej (1,500 m2) w górach
+CEL: Zakup działki rekreacyjnej
 
 PARAMETRY:
+- Powierzchnia działki: 1500 m2
 - Cena działki: 150,000 zł
 - Wkład własny: 50,000 zł (33%)
 - Kwota kredytu: 100,000 zł
-- Okres: 10 lat""",
+- Okres: 10 lat
+
+NIERUCHOMOŚĆ:
+- Typ: działka rekreacyjna
+- Lokalizacja: góry
+
+DODATKOWE:
+- Status: małżeństwo""",
         
         "🏗️ Budowa domu (35 lat)": """Klient: Małgorzata Nowak, 35 lat
 Współkredytobiorca: Piotr Nowak, 37 lat
 
 DOCHODY:
-- Małgorzata: UoP, 8,000 zł/mc, staż 4 lata
-- Piotr: Działalność gospodarcza (KPiR), 24 miesiące
+- Małgorzata: UoP na czas nieokreślony, 8000 zł/mc, staż 4 lata
+- Piotr: Działalność gospodarcza KPiR, 24 miesiące
 
-CEL: Budowa domu jednorodzinnego
+CEL: Budowa domu jednorodzinnego systemem zleconym
 
 PARAMETRY:
 - Koszt budowy: 600,000 zł
 - Działka w posiadaniu (wartość 100,000 zł)
 - Wkład własny: 140,000 zł (20%)
 - Kwota kredytu: 560,000 zł
-- Okres: 30 lat"""
+- Okres: 30 lat
+
+NIERUCHOMOŚĆ:
+- Typ: dom (budowa)
+- Powierzchnia działki: 800 m2
+- Pozwolenie na budowę: tak
+
+DODATKOWE:
+- Status: małżeństwo
+- Działka jako część wkładu własnego""",
+        
+        "🏢 Lokal użytkowy (40 lat, kontrakt B2B)": """Klient: Przedsiębiorca, 40 lat
+
+DOCHODY:
+- Kontrakt menadżerski (B2B), 36 miesięcy, 15000 zł/mc
+
+CEL: Zakup lokalu użytkowego pod biuro
+
+PARAMETRY:
+- Wartość lokalu: 500,000 zł
+- Wkład własny: 150,000 zł (30%)
+- Kwota kredytu: 350,000 zł
+- LTV: 70%
+- Okres: 20 lat
+
+NIERUCHOMOŚĆ:
+- Typ: lokal użytkowy
+- Lokalizacja: Kraków (miasto >100k)
+- Powierzchnia: 50 m2
+
+DODATKOWE:
+- Status: single
+- Brak innych kredytów"""
     }
     
     selected_example = st.selectbox(
-        "Przykładowe profile:",
+        "Szybki start - wybierz przykład:",
         options=list(example_profiles.keys()),
         index=0
     )
     
     user_description = st.text_area(
-        "Opisz sytuację finansową i potrzeby kredytowe klienta:",
+        "Opisz profil klienta (możesz w dowolnej formie - system AI zrozumie):",
         value=example_profiles[selected_example],
-        height=350,
-        placeholder="Wprowadź szczegółowy opis profilu klienta: wiek, dochody, cel kredytu, parametry finansowe..."
+        height=400,
+        placeholder="""Podaj dane klienta w dowolnej formie, np.:
+
+Jan Kowalski, 45 lat
+UoP na stałe, staż 5 lat
+Zakup mieszkania za 800k
+Wkład własny 20%
+Okres 25 lat
+"""
     )
     
     # Przycisk analizy
@@ -308,14 +429,50 @@ PARAMETRY:
     
     if analyze_button and user_description.strip():
         # Pobierz wybrane modele z session state
+        mapper_model = st.session_state.get('mapper_model', 'gpt-4.1')
         etap1 = st.session_state.get('etap1_model', 'gpt-4.1')
         etap2 = st.session_state.get('etap2_model', 'gpt-4.1')
         use_async_mode = st.session_state.get('use_async', True)
         
-        spinner_text = f'🤖 Analiza: ETAP 1 [{etap1}] {"⚡ ASYNC" if use_async_mode else ""}...'
+        # ====================================================================
+        # KROK 0: MAPOWANIE INPUTU NA MODEL DANYCH
+        # ====================================================================
+        with st.spinner(f'🔄 KROK 0: Mapowanie danych klienta [{mapper_model}]...'):
+            try:
+                profile, profile_dict = st.session_state.input_mapper.map_input_to_profile(
+                    user_input=user_description,
+                    model_name=mapper_model
+                )
+                
+                st.session_state.customer_profile = profile
+                st.session_state.mapped_profile_json = profile_dict
+                
+                # Sprawdź czy profil kompletny
+                if not profile.is_complete():
+                    missing = profile.get_missing_required_fields()
+                    st.warning(f"⚠️ Brakujące wymagane dane: {', '.join(missing)}")
+                    st.info("💡 Analiza będzie przeprowadzona, ale może być niepełna.")
+                else:
+                    st.success("✅ Profil klienta zmapowany pomyślnie!")
+                
+                # Pokaż zmapowany profil w expander
+                with st.expander("🔍 Zobacz zmapowany profil (JSON)", expanded=False):
+                    st.json(profile.to_dict())
+                
+            except Exception as e:
+                st.error(f"❌ Błąd mapowania profilu: {str(e)}")
+                st.stop()
+        
+        # ====================================================================
+        # KROK 1 i 2: ANALIZA DWUETAPOWA (ze zmapowanym profilem)
+        # ====================================================================
+        spinner_text = f'🤖 ETAP 1: Walidacja WYMOGÓW [{etap1}] {"⚡ ASYNC" if use_async_mode else ""}...'
         
         with st.spinner(spinner_text):
             try:
+                # Przekaż zmapowany profil jako context
+                profile_context = json.dumps(st.session_state.mapped_profile_json, ensure_ascii=False, indent=2)
+                
                 # Uruchom system dwupromptowy z wybranymi modelami
                 result = st.session_state.engine.ai_client.query_two_stage(
                     user_query=user_description,
@@ -323,7 +480,8 @@ PARAMETRY:
                     etap1_model=etap1,
                     etap2_model=etap2,
                     use_async=use_async_mode,
-                    knowledge_base_dict=st.session_state.engine.data_processor.knowledge_base
+                    knowledge_base_dict=st.session_state.engine.data_processor.knowledge_base,
+                    customer_profile=st.session_state.customer_profile  # Przekaż zmapowany profil
                 )
                 
                 if not result.get("error"):
@@ -671,12 +829,20 @@ with st.sidebar:
         "o4-mini"
     ]
     
+    # Wybór modelu dla MAPPER (nowy!)
+    mapper_model = st.selectbox(
+        "🔄 Model MAPPER (Ekstrakcja danych)",
+        available_models,
+        index=0,  # domyślnie gpt-4.1
+        help="Model do mapowania inputu użytkownika na strukturę danych. Rekomendacja: gpt-4.1 dla precyzji"
+    )
+    
     # Wybór modelu dla ETAP 1 (Walidacja)
     etap1_model = st.selectbox(
         "🔍 Model ETAP 1 (Walidacja WYMOGÓW)",
         available_models,
         index=0,  # domyślnie gpt-4.1
-        help="Model do walidacji 68 parametrów eliminujących. Rekomendacja: gpt-4.1 lub o4-mini dla szybkości"
+        help="Model do walidacji parametrów eliminujących. Rekomendacja: gpt-4.1 lub o4-mini dla szybkości"
     )
     
     # Wybór modelu dla ETAP 2 (Ranking)
@@ -684,7 +850,7 @@ with st.sidebar:
         "🏅 Model ETAP 2 (Ranking JAKOŚCI)",
         available_models,
         index=0,  # domyślnie gpt-4.1
-        help="Model do rankingu 19 parametrów jakościowych. Rekomendacja: gpt-4.1 dla najlepszej jakości"
+        help="Model do rankingu parametrów jakościowych. Rekomendacja: gpt-4.1 dla najlepszej jakości"
     )
     
     # Async mode toggle
@@ -695,6 +861,7 @@ with st.sidebar:
     )
     
     # Zapisz w session state
+    st.session_state.mapper_model = mapper_model
     st.session_state.etap1_model = etap1_model
     st.session_state.etap2_model = etap2_model
     st.session_state.use_async = use_async
@@ -704,28 +871,62 @@ with st.sidebar:
     st.markdown("### ℹ️ O systemie")
     
     st.markdown("""
-    **System Dwupromptowy v2.0**
+    **System Trzyetapowy v3.0**
     
-    🔍 **ETAP 1: Walidacja WYMOGÓW**
-    - 68 parametrów eliminujących
+    � **ETAP 0: Mapowanie danych**
+    - AI ekstraktuje dane z inputu
+    - Strukturyzacja do modelu
+    - Walidacja kompletności
+    
+    �🔍 **ETAP 1: Walidacja WYMOGÓW**
+    - Sprawdza tylko podane parametry
     - Precyzyjna kwalifikacja
     - Jasne uzasadnienia
     
     🏅 **ETAP 2: Ranking JAKOŚCI**
-    - 19 parametrów oceniających
-    - Punktacja 0-100
+    - Punktacja tylko dla podanych cech
+    - Scoring 0-100
     - TOP 4 rekomendacje
     
     📊 **Baza wiedzy:**
     - 11 banków
-    - 92 parametry/bank
-    - 1,012 punktów weryfikacji
+    - 87 parametrów/bank
+    - Inteligentne dopasowanie
     """)
     
     st.markdown("---")
     
+    # Pokaż zmapowany profil jeśli istnieje
+    if st.session_state.customer_profile:
+        st.markdown("### � Zmapowany profil")
+        
+        profile = st.session_state.customer_profile
+        
+        # Status kompletności
+        if profile.is_complete():
+            st.success("✅ Profil kompletny")
+        else:
+            missing = profile.get_missing_required_fields()
+            st.warning(f"⚠️ Brak: {len(missing)} pól")
+        
+        # Podstawowe info
+        if profile.borrower.age:
+            st.caption(f"👤 Wiek: {profile.borrower.age} lat")
+        if profile.borrower.income_type:
+            st.caption(f"💼 Dochód: {profile.borrower.income_type.value}")
+        if profile.loan.loan_purpose:
+            st.caption(f"🎯 Cel: {profile.loan.loan_purpose.value}")
+        if profile.loan.loan_amount:
+            st.caption(f"💰 Kwota: {profile.loan.loan_amount:,.0f} PLN")
+        
+        # Przycisk do pełnego widoku
+        with st.expander("🔍 Pełny JSON"):
+            st.json(profile.to_dict())
+    
+    st.markdown("---")
+    
     if st.session_state.validation_result:
-        st.markdown("### 📈 Statystyki ostatniej analizy")
+        st.markdown("### 📈 Statystyki analizy")
         
         summary = st.session_state.validation_result.get("validation_summary", {})
         
@@ -734,17 +935,6 @@ with st.sidebar:
             st.metric("Zakwalifikowane", summary.get("qualified_count", 0))
         with col2:
             st.metric("Odrzucone", summary.get("disqualified_count", 0))
-        
-        # Pokaż customer_summary
-        customer = st.session_state.validation_result.get("customer_summary", {})
-        if customer:
-            st.markdown("**Profil klienta:**")
-            if isinstance(customer.get("age"), list):
-                st.caption(f"Wiek: {', '.join(map(str, customer['age']))} lat")
-            else:
-                st.caption(f"Wiek: {customer.get('age', 'N/D')}")
-            st.caption(f"Dochód: {customer.get('income_type', 'N/D')}")
-            st.caption(f"Cel: {customer.get('loan_purpose', 'N/D')[:50]}...")
     
     st.markdown("---")
     

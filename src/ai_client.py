@@ -565,7 +565,8 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
         bank_name: str,
         bank_data: Dict,
         user_query: str,
-        deployment_name: str = None
+        deployment_name: str = None,
+        customer_profile = None
     ) -> Dict:
         """
         ASYNC: Walidacja pojedynczego banku (WYMOGI)
@@ -575,16 +576,153 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
             bank_data: Dane banku z knowledge base
             user_query: Profil klienta
             deployment_name: Opcjonalny model do użycia (domyślnie self.deployment_name)
+            customer_profile: Zmapowany profil klienta (CustomerProfile object)
             
         Returns:
             Dict z wynikiem walidacji dla tego banku
         """
-        # Krótszy prompt dla pojedynczego banku
-        validation_prompt = f"""Jesteś ekspertem ds. produktów hipotecznych w Platinum Financial.
+        # Prompt dla pojedynczego banku - INTELIGENTNA WALIDACJA
+        if customer_profile:
+            # Nowy prompt - sprawdzaj tylko dostępne dane
+            validation_prompt = f"""Jesteś ekspertem ds. produktów hipotecznych in Platinum Financial.
+
+🎯 ZADANIE: Sprawdź czy bank **{bank_name}** SPEŁNIA WYMOGI klienta.
+
+⚡ **KLUCZOWA ZASADA: Sprawdzaj TYLKO te WYMOGI, które dotyczą danych DOSTĘPNYCH w profilu klienta.**
+
+📋 **DOSTĘPNE DANE KLIENTA** (zmapowany profil JSON):
+Otrzymasz pełny profil klienta w formacie JSON. Wiele pól może być `null` (nie podane).
+
+🔍 **JAK WALIDOWAĆ:**
+
+1. **Przejrzyj profil klienta** - zauważ które pola są wypełnione (nie-null), a które puste (null)
+
+2. **Sprawdzaj TYLKO wymogi dotyczące wypełnionych pól**:
+   
+   **Przykład 1 - Wiek:**
+   - Jeśli `borrower.age: 45` → SPRAWDŹ czy bank akceptuje 45 lat
+   - Jeśli `borrower.age: null` → POMIŃ (nie sprawdzaj)
+   
+   **Przykład 2 - Typ dochodu:**
+   - Jeśli `income_type: "umowa_o_prace_czas_nieokreslony"` → SPRAWDŹ czy bank akceptuje UoP
+   - Jeśli `income_type: null` → POMIŃ
+   
+   **Przykład 3 - Cel kredytu:**
+   - Jeśli `loan_purpose: "zakup_mieszkania_domu"` → SPRAWDŹ czy bank finansuje
+   - Jeśli `loan_purpose: "zakup_kamienicy"` → SPRAWDŹ kamienicę
+   - Jeśli `loan_purpose: null` → POMIŃ
+   
+   **Przykład 4 - Cudzoziemiec:**
+   - Jeśli `is_polish_citizen: false` → SPRAWDŹ wymogi dla cudzoziemców
+   - Jeśli `is_polish_citizen: true` lub `null` → POMIŃ (nie dotyczy)
+   
+   **Przykład 5 - Kredyt EKO:**
+   - Jeśli `eco_friendly: true` → SPRAWDŹ czy bank oferuje kredyt EKO
+   - Jeśli `eco_friendly: null` lub `false` → POMIŃ
+
+3. **NIE wymyślaj danych** - jeśli pole jest `null`, nie zakładaj wartości
+
+4. **Kategoryzuj wymogi**:
+   - ✅ **Spełnione** - bank akceptuje to co klient podał
+   - ❌ **Niespełnione** - bank NIE akceptuje tego co klient podał (DYSKWALIFIKACJA!)
+   - ⏭️ **Pominięte** - brak danych w profilu (nie wliczaj do oceny)
+
+5. **Decyzja końcowa**:
+   - Jeśli choć JEDEN sprawdzony wymóg jest ❌ → `status: "DISQUALIFIED"`
+   - Jeśli wszystkie sprawdzone wymogi są ✅ → `status: "QUALIFIED"`
+
+---
+
+📊 **FORMAT ODPOWIEDZI (JSON):**
+
+{{
+  "bank_name": "{bank_name}",
+  "status": "QUALIFIED" lub "DISQUALIFIED",
+  "sprawdzone_wymogi": [
+    "wiek: 45 lat - bank akceptuje 18-67",
+    "typ_dochodu: UoP - bank wymaga min 3mc stażu, klient ma 60mc",
+    "cel: zakup mieszkania - bank finansuje",
+    "LTV: 80% - bank akceptuje do 90%"
+  ],
+  "pominiete_wymogi": [
+    "cudzoziemiec - brak danych (is_polish_citizen=null)",
+    "kredyt_eko - nie podano (eco_friendly=null)",
+    "transakcja_rodzinna - nie podano",
+    "..."
+  ],
+  "spelnione_wymogi": [
+    "wiek: OK (45 < 67)",
+    "UoP: OK (60mc > 3mc minimum)",
+    "cel: OK (finansuje mieszkania)",
+    "LTV: OK (80% < 90%)"
+  ],
+  "niespelnione_wymogi": [
+    "wiek: PROBLEM (45 > 35 max)"
+  ],
+  "kluczowe_problemy": [
+    "Wiek klienta (45 lat) przekracza maksymalny wiek banku (35 lat)"
+  ],
+  "statystyka": {{
+    "sprawdzone": 4,
+    "spelnione": 3,
+    "niespelnione": 1,
+    "pominiete": 60
+  }},
+  "notatki": "Bank sprawdzony pod kątem 4 wymogów (z 68 możliwych). 60 wymogów pominięto z powodu braku danych."
+}}
+
+---
+
+⚠️ **KRYTYCZNE ZASADY:**
+
+1. **Sprawdzaj TYLKO to, co klient PODAŁ** (nie-null w JSON)
+2. **NIE dyskwalifikuj** za brak danych (null = pomijamy)
+3. **Dyskwalifikuj TYLKO** jeśli bank NIE AKCEPTUJE tego co klient PODAŁ
+4. **Bądź precyzyjny** - cytuj wartości z bazy banku vs wartości klienta
+5. **Grupuj logicznie** - np. wszystkie wymogi dot. wieku w jednej linii
+
+---
+
+💡 **PRZYKŁAD:**
+
+Profil klienta:
+```json
+{{
+  "borrower": {{"age": 45, "income_type": "umowa_o_prace_czas_nieokreslony", "employment_duration_months": 60}},
+  "loan": {{"loan_purpose": "zakup_mieszkania_domu", "ltv": 80}},
+  "property": {{"property_type": "mieszkanie"}}
+}}
+```
+
+Bank wymaga:
+- Wiek: 18-67 lat
+- UoP: min 3 mc stażu
+- Zakup mieszkania: TAK
+- LTV max: 90%
+- Cudzoziemiec: karta stałego pobytu
+
+Odpowiedź:
+```json
+{{
+  "bank_name": "ING Bank",
+  "status": "QUALIFIED",
+  "sprawdzone_wymogi": ["wiek (45)", "UoP (60mc)", "zakup mieszkania", "LTV (80%)"],
+  "pominiete_wymogi": ["cudzoziemiec (brak danych)", "kredyt EKO", "transakcja rodzinna", "..."],
+  "spelnione_wymogi": ["wiek: 45 < 67 ✓", "UoP: 60mc > 3mc ✓", "cel: mieszkanie ✓", "LTV: 80% < 90% ✓"],
+  "niespelnione_wymogi": [],
+  "kluczowe_problemy": [],
+  "statystyka": {{"sprawdzone": 4, "spelnione": 4, "niespelnione": 0, "pominiete": 64}},
+  "notatki": "Bank spełnia wszystkie 4 sprawdzone wymogi."
+}}
+```
+"""
+        else:
+            # Stary prompt - sprawdzaj wszystko (fallback)
+            validation_prompt = f"""Jesteś ekspertem ds. produktów hipotecznych w Platinum Financial.
 
 🎯 ZADANIE: Sprawdź czy bank **{bank_name}** SPEŁNIA wszystkie WYMOGI klienta.
 
-📋 Sprawdzasz TYLKO parametry typu WYMÓG (eliminatory) - 78% wszystkich parametrów.
+📋 Sprawdzasz TYLKO parametry typu WYMÓG (eliminatory).
 
 **WYMOGI do sprawdzenia:**
 - 02_kredytobiorca (7 WYMOGÓW): wiek, liczba wnioskodawców, związek nieformalny, właściciele, rozdzielność, cudzoziemiec
@@ -609,11 +747,25 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
 
         bank_context = json.dumps(bank_data, ensure_ascii=False, indent=2)
         
+        # Przygotuj messages z uwzględnieniem customer_profile
         messages = [
             {"role": "system", "content": validation_prompt},
-            {"role": "system", "content": f"DANE BANKU {bank_name}:\n\n{bank_context}"},
-            {"role": "user", "content": f"PROFIL KLIENTA:\n\n{user_query}"}
+            {"role": "system", "content": f"DANE BANKU {bank_name}:\n\n{bank_context}"}
         ]
+        
+        # Jeśli mamy zmapowany profil, użyj go zamiast surowego user_query
+        if customer_profile:
+            profile_json = json.dumps(customer_profile.to_dict(), ensure_ascii=False, indent=2)
+            messages.append({
+                "role": "user", 
+                "content": f"ZMAPOWANY PROFIL KLIENTA (JSON):\n\n{profile_json}\n\n⚠️ PAMIĘTAJ: Sprawdzaj TYLKO pola które nie są null!"
+            })
+        else:
+            # Fallback - użyj surowego inputu
+            messages.append({
+                "role": "user",
+                "content": f"PROFIL KLIENTA:\n\n{user_query}"
+            })
         
         # Użyj podanego modelu lub domyślnego
         model = deployment_name or self.deployment_name
@@ -687,7 +839,8 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
         self,
         user_query: str,
         knowledge_base: Dict,
-        deployment_name: str = None
+        deployment_name: str = None,
+        customer_profile = None
     ) -> Tuple[str, Dict]:
         """
         ASYNC PARALLEL: Walidacja WYMOGÓW dla wszystkich banków równolegle
@@ -696,11 +849,15 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
             user_query: Zapytanie użytkownika (profil klienta)
             knowledge_base: Pełna baza wiedzy (Dict z listą products)
             deployment_name: Opcjonalny model do użycia
+            customer_profile: Zmapowany profil klienta (CustomerProfile object)
             
         Returns:
             Tuple (odpowiedź JSON jako string, parsed dict)
         """
         print("🔍 ETAP 1: Walidacja WYMOGÓW (PARALLEL MODE)...")
+        
+        if customer_profile:
+            print(f"📋 Użyto zmapowanego profilu - sprawdzam tylko podane parametry")
         
         # Przygotuj listę tasków dla każdego banku
         tasks = []
@@ -711,7 +868,8 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
                     bank_name=bank_name,
                     bank_data=product,
                     user_query=user_query,
-                    deployment_name=deployment_name
+                    deployment_name=deployment_name,
+                    customer_profile=customer_profile
                 )
                 tasks.append(task)
         
@@ -752,7 +910,8 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
         bank_name: str,
         bank_data: Dict,
         user_query: str,
-        deployment_name: str = None
+        deployment_name: str = None,
+        customer_profile = None
     ) -> Dict:
         """
         ASYNC: Ocena jakości pojedynczego banku (19 parametrów JAKOŚCI)
@@ -762,12 +921,146 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
             bank_data: Dane banku z knowledge base
             user_query: Profil klienta
             deployment_name: Opcjonalny model do użycia
+            customer_profile: Zmapowany profil klienta (CustomerProfile object)
             
         Returns:
             Dict z oceną jakości banku (0-100 punktów)
         """
-        # Krótszy prompt dla pojedynczego banku
-        ranking_prompt = f"""Jesteś ekspertem ds. produktów hipotecznych w Platinum Financial.
+        # Inteligentny prompt - oceniaj tylko te parametry, które są istotne dla klienta
+        if customer_profile:
+            ranking_prompt = f"""Jesteś ekspertem ds. produktów hipotecznych w Platinum Financial.
+
+🎯 ZADANIE: Oceń JAKOŚĆ oferty banku **{bank_name}** dla klienta (0-100 pkt).
+
+⚡ **KLUCZOWA ZASADA: Punktuj TYLKO te parametry JAKOŚCI, które są ISTOTNE dla tego klienta.**
+
+📋 **DOSTĘPNE DANE KLIENTA** (zmapowany profil):
+Otrzymasz profil klienta w JSON. Niektóre pola mogą być `null` (nie podane).
+
+🔍 **JAK PUNKTOWAĆ:**
+
+1. **Przeanalizuj profil** - sprawdź co klient podał, a co pominął
+
+2. **Punktuj TYLKO istotne parametry**:
+
+   **A) KOSZT (max 35 pkt):**
+   - **Wcześniejsza spłata** (0-10): ZAWSZE punktuj (uniwersalny benefit)
+     - 0% = 10, 1% = 7, 2% = 4, 3% = 0
+   - **Ubezp. pomostowe** (0-8): Punktuj JEŚLI `ltv` lub `down_payment_percent` podane
+     - brak = 8, +0.5% = 5, +1% = 2, +1.3% = 0
+   - **Ubezp. niskiego wkładu** (0-7): Punktuj JEŚLI `ltv > 80%` lub `down_payment_percent < 20%`
+     - brak = 7, +0.2% = 4, +0.25% = 0
+   - **Koszt operatu** (0-5): ZAWSZE punktuj (każdy klient potrzebuje)
+     - ≤400 zł = 5, 401-700 = 3, >700 = 0
+   - **Kredyt EKO** (0-5): Punktuj JEŚLI `eco_friendly: true` LUB nie podano (benefit dla wszystkich)
+     - -0.2 p.p. = 5, -0.1 = 3, -0.05 = 2, brak = 0
+   
+   **B) ELASTYCZNOŚĆ (max 25 pkt):**
+   - **Kwota max** (0-8): Punktuj JEŚLI `loan_amount` podana (kontekst ile klient bierze)
+     - ≥4 mln = 8, 3-4 mln = 6, 2-3 mln = 4, <2 mln = 2
+   - **Okres kredytowania** (0-7): Punktuj JEŚLI `loan_period` podany
+     - 420 mc = 7, 360 mc = 5, 300 mc = 3
+   - **Karencja** (0-5): Punktuj JEŚLI `grace_period_months` podana LUB jest zainteresowanie
+     - do 60 mc = 5, do 24 mc = 3, brak = 0
+   - **Typ rat** (0-5): ZAWSZE punktuj (preferncje mogą się zmienić)
+     - równe i malejące = 5, tylko równe = 2
+   
+   **C) WYGODA (max 20 pkt):**
+   - **Rodzaj operatu** (0-10): ZAWSZE punktuj
+     - wewnętrzny = 10, oba = 7, zewnętrzny = 3
+   - **Termin decyzji** (0-5): ZAWSZE punktuj
+     - 90 dni = 5, 60 dni = 3, 30 dni = 1
+   - **Waluty** (0-5): Punktuj JEŚLI `currency` podana LUB różna od PLN
+     - PLN+EUR+inne = 5, PLN+EUR = 3, PLN = 2
+   
+   **D) KORZYŚCI (max 15 pkt):**
+   - **Oprocentowanie stałe** (0-8): Punktuj JEŚLI `fixed_rate_period_years` podana LUB brak info (benefit)
+     - 10 lat = 8, 5 lat = 5, brak = 0
+   - **Ubezp. nieruchomości** (0-4): ZAWSZE punktuj (benefit)
+     - dostępne z bonusem = 4, dostępne = 2, brak = 0
+   - **Ubezp. utraty pracy** (0-3): ZAWSZE punktuj (benefit)
+     - dostępne = 3, brak = 0
+   
+   **E) PARAMETRY MAX (max 5 pkt):**
+   - **LTV pożyczka** (0-3): Punktuj JEŚLI cel to pożyczka hipoteczna
+     - 60% = 3, 50% = 2, brak = 0
+   - **Kwota pożyczki** (0-2): Punktuj JEŚLI cel to pożyczka hipoteczna
+     - ≥3 mln = 2, 1-3 mln = 1, brak = 0
+
+3. **Oblicz scoring**:
+   - Zsumuj TYLKO sprawdzone parametry
+   - Przeskaluj do 100 punktów (proporcjonalnie)
+   
+   **Przykład:**
+   - Sprawdzono 12 parametrów z możliwych 19
+   - Max możliwe punkty: 70 (suma tylko sprawdzonych)
+   - Uzyskane: 61
+   - Wynik końcowy: (61/70) * 100 = **87/100 pkt**
+
+4. **NIE punktuj** jeśli parametr nie dotyczy klienta:
+   - Kredyt EKO → NIE punktuj jeśli `eco_friendly: false` (klient nie chce)
+   - Karencja → NIE punktuj jeśli brak wzmianki i krótki okres
+   - Waluta → NIE punktuj jeśli tylko PLN i klient nie wspomniał
+   - LTV pożyczka → NIE punktuj jeśli cel to zakup mieszkania
+
+---
+
+📊 **FORMAT ODPOWIEDZI (JSON):**
+
+{{
+  "bank_name": "{bank_name}",
+  "total_score": 87,
+  "scoring_method": "Sprawdzono 12/19 parametrów (max 70 pkt), uzyskano 61 pkt → (61/70)*100 = 87",
+  "breakdown": {{
+    "koszt_kredytu": 28,
+    "elastycznosc": 18,
+    "wygoda": 17,
+    "korzysci": 11,
+    "parametry_max": 0
+  }},
+  "checked_parameters": [
+    "wczesniejsza_splata",
+    "ubezpieczenie_pomostowe",
+    "koszt_operatu",
+    "kredyt_eko",
+    "kwota_max",
+    "..."
+  ],
+  "skipped_parameters": [
+    "karencja - brak zainteresowania klienta",
+    "ltv_pozyczka - cel to zakup mieszkania, nie pożyczka",
+    "..."
+  ],
+  "details": {{
+    "wczesniejsza_splata": {{"value": "0%", "points": 10, "checked": true}},
+    "ubezpieczenie_pomostowe": {{"value": "brak", "points": 8, "checked": true}},
+    "ubezpieczenie_niskiego_wkladu": {{"value": "+0.25%", "points": 0, "checked": false, "reason": "LTV poniżej 80%"}},
+    "koszt_operatu": {{"value": "400 zł", "points": 5, "checked": true}},
+    "kredyt_eko": {{"value": "brak", "points": 0, "checked": false, "reason": "Klient nie wspomniał o EKO"}},
+    "kwota_max": {{"value": "3 mln", "points": 6, "checked": true}},
+    "..."
+  }},
+  "kluczowe_atuty": [
+    "Brak opłaty za wcześniejszą spłatę (10/10 pkt)",
+    "Brak ubezpieczenia pomostowego (8/8 pkt)",
+    "Niski koszt operatu 400 zł (5/5 pkt)"
+  ],
+  "punkty_uwagi": [
+    "Brak kredytu EKO - mogłoby obniżyć marżę",
+    "Oprocentowanie stałe tylko 5 lat (5/8 pkt)"
+  ]
+}}
+
+⚠️ **KRYTYCZNE:**
+1. Punktuj TYLKO parametry istotne dla TEGO klienta
+2. Przeskaluj wynik do 100 (suma sprawdzonych / max sprawdzonych * 100)
+3. Wyjaśnij w "scoring_method" jak liczyłeś
+4. W "checked_parameters" wymień co sprawdziłeś
+5. W "skipped_parameters" wyjaśnij co pominąłeś i dlaczego
+"""
+        else:
+            # Stary prompt - punktuj wszystko (fallback)
+            ranking_prompt = f"""Jesteś ekspertem ds. produktów hipotecznych w Platinum Financial.
 
 🎯 ZADANIE: Oceń JAKOŚĆ oferty banku **{bank_name}** dla klienta (system punktowy 0-100).
 
@@ -855,9 +1148,23 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
         
         messages = [
             {"role": "system", "content": ranking_prompt},
-            {"role": "system", "content": f"DANE BANKU {bank_name}:\n\n{bank_context}"},
-            {"role": "user", "content": f"PROFIL KLIENTA:\n\n{user_query}"}
+            {"role": "system", "content": f"DANE BANKU {bank_name}:\n\n{bank_context}"}
         ]
+        
+        # Dodaj profil klienta - w zależności czy mamy zmapowany profil czy raw text
+        if customer_profile:
+            # Wysyłamy strukturalny JSON profilu do LLM
+            profile_json = json.dumps(customer_profile.to_dict(), ensure_ascii=False, indent=2)
+            messages.append({
+                "role": "user",
+                "content": f"ZMAPOWANY PROFIL KLIENTA (JSON):\n\n{profile_json}\n\n⚠️ PAMIĘTAJ: Punktuj TYLKO parametry istotne dla tego profilu!"
+            })
+        else:
+            # Fallback - stary sposób (raw text)
+            messages.append({
+                "role": "user",
+                "content": f"PROFIL KLIENTA:\n\n{user_query}"
+            })
         
         # Użyj podanego modelu lub domyślnego
         model = deployment_name or self.deployment_name
@@ -940,7 +1247,8 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
         user_query: str,
         knowledge_base: Dict,
         qualified_banks: List[str],
-        deployment_name: str = None
+        deployment_name: str = None,
+        customer_profile = None
     ) -> str:
         """
         ASYNC PARALLEL: Ranking JAKOŚCI dla wszystkich zakwalifikowanych banków
@@ -950,6 +1258,7 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
             knowledge_base: Pełna baza wiedzy (Dict z listą products)
             qualified_banks: Lista nazw zakwalifikowanych banków
             deployment_name: Opcjonalny model do użycia
+            customer_profile: Zmapowany profil klienta (CustomerProfile object)
             
         Returns:
             Markdown z rankingiem TOP 4 banków
@@ -971,7 +1280,8 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
                     bank_name=bank_name,
                     bank_data=bank_data,
                     user_query=user_query,
-                    deployment_name=deployment_name
+                    deployment_name=deployment_name,
+                    customer_profile=customer_profile
                 )
                 tasks.append(task)
         
@@ -1178,7 +1488,8 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
         etap1_model: str = None,
         etap2_model: str = None,
         use_async: bool = True,
-        knowledge_base_dict: Dict = None
+        knowledge_base_dict: Dict = None,
+        customer_profile = None
     ) -> Dict[str, str]:
         """
         Główna metoda - dwuetapowe przetwarzanie zapytania
@@ -1190,14 +1501,17 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
             etap2_model: Model do ETAP 2 (None = domyślny)
             use_async: Czy używać async parallel processing
             knowledge_base_dict: Pełna baza wiedzy jako Dict (dla async)
+            customer_profile: Zmapowany profil klienta (CustomerProfile object)
             
         Returns:
             Dict z wynikami obu etapów
         """
         print("\n" + "="*80)
-        print("🚀 DWUETAPOWY SYSTEM DOPASOWANIA KREDYTÓW")
+        print("🚀 TRZYETAPOWY SYSTEM DOPASOWANIA KREDYTÓW")
         if use_async:
             print("⚡ Tryb: ASYNC PARALLEL")
+        if customer_profile:
+            print("📋 Profil zmapowany: TAK")
         print("="*80 + "\n")
         
         # ETAP 1: Walidacja WYMOGÓW
@@ -1210,7 +1524,8 @@ Teraz rankujesz te banki według JAKOŚCI oferty (19 parametrów JAKOŚĆ = 22% 
                     self.validate_requirements_async(
                         user_query=user_query,
                         knowledge_base=knowledge_base_dict,
-                        deployment_name=etap1_model
+                        deployment_name=etap1_model,
+                        customer_profile=customer_profile
                     )
                 )
             finally:
