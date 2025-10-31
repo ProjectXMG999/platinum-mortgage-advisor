@@ -14,6 +14,7 @@ st.set_page_config(
 import json
 import sys
 import os
+import asyncio
 
 # Dodaj src do ścieżki (kompatybilność z lokalnym i Streamlit Cloud)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -166,6 +167,43 @@ def extract_bank_score(ranking_text, bank_name):
     return None
 
 
+def extract_category_scores(ranking_text, bank_name):
+    """Wyciąga breakdown punktacji według kategorii"""
+    try:
+        import re
+        
+        # Znajdź sekcję danego banku
+        bank_section_pattern = rf"##.*?{re.escape(bank_name)}(.*?)(?=##|$)"
+        bank_section = re.search(bank_section_pattern, ranking_text, re.DOTALL | re.IGNORECASE)
+        
+        if bank_section:
+            section = bank_section.group(1)
+            
+            # Szukaj sekcji "Rozbicie punktacji"
+            breakdown_pattern = r"### 📊 Rozbicie punktacji:(.*?)(?=###|$)"
+            breakdown_match = re.search(breakdown_pattern, section, re.DOTALL | re.IGNORECASE)
+            
+            if breakdown_match:
+                breakdown_text = breakdown_match.group(1)
+                
+                # Wyciągnij wszystkie linie typu "- kategoria: X pkt"
+                scores = {}
+                for line in breakdown_text.split('\n'):
+                    # Zmieniony regex - dopasuj również podkreślniki i inne znaki
+                    match = re.search(r'-\s*([\w_]+):\s*(\d+)\s*pkt', line)
+                    if match:
+                        category = match.group(1)
+                        score = int(match.group(2))
+                        scores[category] = score
+                
+                if scores:
+                    return scores
+    except Exception as e:
+        print(f"Błąd extract_category_scores dla {bank_name}: {e}")
+    
+    return {}
+
+
 def extract_top_reasons(ranking_text, bank_name):
     """Wyciąga główne atuty banku z tekstu rankingu"""
     try:
@@ -241,6 +279,20 @@ col1, col2, col3 = st.columns([2, 3, 3])
 with col1:
     st.markdown("### 📝 Profil Klienta")
     
+    # Import danych Quick Start
+    try:
+        from ui_templates.quick_start_data import (
+            CONSULTANT_CONVERSATIONS,
+            STANDARD_PROFILES,
+            FORM_FIELD_TEMPLATES
+        )
+    except ImportError:
+        from src.ui_templates.quick_start_data import (
+            CONSULTANT_CONVERSATIONS,
+            STANDARD_PROFILES,
+            FORM_FIELD_TEMPLATES
+        )
+    
     # Przycisk pomocy - szablon
     with st.expander("📖 **PRZEWODNIK: Jakie dane mogę podać?**", expanded=False):
         st.markdown("""
@@ -297,127 +349,518 @@ with col1:
         - Cel dowolny (pożyczka hipoteczna)
         """)
     
-    # Przykładowe profile
-    example_profiles = {
-        "Wybierz przykład...": "",
-        "👨‍💼 Standardowy (45 lat, zakup mieszkania)": """Klient: Jan Kowalski, 45 lat
-Współkredytobiorca: Anna Kowalska, 42 lata
-
-DOCHODY:
-- Jan: Umowa o pracę na czas nieokreślony, staż 5 lat, dochód 8000 zł/mc
-- Anna: Umowa o pracę na czas nieokreślony, staż 3 lata, dochód 6000 zł/mc
-
-CEL: Zakup mieszkania na rynku wtórnym w Warszawie
-
-PARAMETRY:
-- Wartość mieszkania: 800,000 zł
-- Wkład własny: 160,000 zł (20%)
-- Kwota kredytu: 640,000 zł
-- LTV: 80%
-- Okres: 25 lat (300 miesięcy)
-
-NIERUCHOMOŚĆ:
-- Typ: mieszkanie
-- Lokalizacja: Warszawa
-- Powierzchnia: 75 m2
-
-DODATKOWE:
-- Status: małżeństwo
-- Obywatele Polski
-- Brak innych kredytów hipotecznych
-- Zainteresowani kredytem EKO""",
-        
-        "👴 Senior (68 lat, działka rekreacyjna)": """Klient: Senior, 68 lat
-Współkredytobiorca: Małżonka, 65 lat
-
-DOCHODY:
-- Klient: Emerytura, 5000 zł/mc
-- Współkredytobiorca: Emerytura, 4000 zł/mc
-
-CEL: Zakup działki rekreacyjnej
-
-PARAMETRY:
-- Powierzchnia działki: 1500 m2
-- Cena działki: 150,000 zł
-- Wkład własny: 50,000 zł (33%)
-- Kwota kredytu: 100,000 zł
-- Okres: 10 lat
-
-NIERUCHOMOŚĆ:
-- Typ: działka rekreacyjna
-- Lokalizacja: góry
-
-DODATKOWE:
-- Status: małżeństwo""",
-        
-        "🏗️ Budowa domu (35 lat)": """Klient: Małgorzata Nowak, 35 lat
-Współkredytobiorca: Piotr Nowak, 37 lat
-
-DOCHODY:
-- Małgorzata: UoP na czas nieokreślony, 8000 zł/mc, staż 4 lata
-- Piotr: Działalność gospodarcza KPiR, 24 miesiące
-
-CEL: Budowa domu jednorodzinnego systemem zleconym
-
-PARAMETRY:
-- Koszt budowy: 600,000 zł
-- Działka w posiadaniu (wartość 100,000 zł)
-- Wkład własny: 140,000 zł (20%)
-- Kwota kredytu: 560,000 zł
-- Okres: 30 lat
-
-NIERUCHOMOŚĆ:
-- Typ: dom (budowa)
-- Powierzchnia działki: 800 m2
-- Pozwolenie na budowę: tak
-
-DODATKOWE:
-- Status: małżeństwo
-- Działka jako część wkładu własnego""",
-        
-        "🏢 Lokal użytkowy (40 lat, kontrakt B2B)": """Klient: Przedsiębiorca, 40 lat
-
-DOCHODY:
-- Kontrakt menadżerski (B2B), 36 miesięcy, 15000 zł/mc
-
-CEL: Zakup lokalu użytkowego pod biuro
-
-PARAMETRY:
-- Wartość lokalu: 500,000 zł
-- Wkład własny: 150,000 zł (30%)
-- Kwota kredytu: 350,000 zł
-- LTV: 70%
-- Okres: 20 lat
-
-NIERUCHOMOŚĆ:
-- Typ: lokal użytkowy
-- Lokalizacja: Kraków (miasto >100k)
-- Powierzchnia: 50 m2
-
-DODATKOWE:
-- Status: single
-- Brak innych kredytów"""
-    }
+    # ========================================================================
+    # 3-TRYBY QUICK START
+    # ========================================================================
+    st.markdown("#### 🚀 Szybki Start")
     
-    selected_example = st.selectbox(
-        "Szybki start - wybierz przykład:",
-        options=list(example_profiles.keys()),
-        index=0
+    quick_start_mode = st.radio(
+        "Wybierz sposób wprowadzania danych:",
+        options=[
+            "💬 Rozmowy konsultant-klient",
+            "📋 Gotowe przykłady",
+            "✏️ Edytor formularza"
+        ],
+        horizontal=True,
+        label_visibility="collapsed"
     )
     
-    user_description = st.text_area(
-        "Opisz profil klienta (możesz w dowolnej formie - system AI zrozumie):",
-        value=example_profiles[selected_example],
-        height=400,
-        placeholder="""Podaj dane klienta w dowolnej formie, np.:
-
-Jan Kowalski, 45 lat
-UoP na stałe, staż 5 lat
-Zakup mieszkania za 800k
-Wkład własny 20%
-Okres 25 lat
+    user_description = ""  # Zmienna przechowująca ostateczny input
+    
+    # ------------------------------------------------------------------------
+    # TRYB 1: ROZMOWY KONSULTANT-KLIENT
+    # ------------------------------------------------------------------------
+    if quick_start_mode == "💬 Rozmowy konsultant-klient":
+        st.markdown("##### 💬 Przykładowe rozmowy z konsultantem")
+        st.caption("Zobacz naturalne dialogi i zrozum, jak wypełniać dane")
+        
+        conversation_options = ["Wybierz rozmowę..."] + list(CONSULTANT_CONVERSATIONS.keys())
+        selected_conversation = st.selectbox(
+            "Wybierz scenariusz:",
+            options=conversation_options,
+            key="conversation_select"
+        )
+        
+        if selected_conversation != "Wybierz rozmowę...":
+            user_description = st.text_area(
+                "Rozmowa konsultanta z klientem:",
+                value=CONSULTANT_CONVERSATIONS[selected_conversation],
+                height=450,
+                key="conversation_text",
+                help="To przykładowa rozmowa - możesz ją edytować lub użyć jako wzór"
+            )
+        else:
+            user_description = st.text_area(
+                "Wpisz swoją rozmowę lub wybierz przykład powyżej:",
+                value="",
+                height=450,
+                key="conversation_text_empty",
+                placeholder="""KONSULTANT: Dzień dobry! Ile ma Pan lat?
+KLIENT: 35 lat.
+KONSULTANT: Jakie ma Pan źródło dochodu?
+KLIENT: Pracuję na umowę o pracę od 5 lat, zarabiam 10 tysięcy miesięcznie.
+...
 """
-    )
+            )
+    
+    # ------------------------------------------------------------------------
+    # TRYB 2: GOTOWE STANDARDOWE INPUTY
+    # ------------------------------------------------------------------------
+    elif quick_start_mode == "📋 Gotowe przykłady":
+        st.markdown("##### 📋 Gotowe standardowe profile")
+        st.caption("Szybkie wczytanie typowych scenariuszy kredytowych")
+        
+        profile_options = ["Wybierz profil..."] + list(STANDARD_PROFILES.keys())
+        selected_profile = st.selectbox(
+            "Wybierz przykładowy profil:",
+            options=profile_options,
+            key="profile_select"
+        )
+        
+        if selected_profile != "Wybierz profil...":
+            user_description = st.text_area(
+                "Profil klienta (możesz edytować):",
+                value=STANDARD_PROFILES[selected_profile],
+                height=450,
+                key="profile_text",
+                help="Przykładowy profil - możesz go modyfikować wedle potrzeb"
+            )
+        else:
+            user_description = st.text_area(
+                "Lub wpisz własny profil w dowolnej formie:",
+                value="",
+                height=450,
+                key="profile_text_empty",
+                placeholder="""Klient: 45 lat, UoP czas nieokreślony, staż 5 lat, 10000 zł/mc
+Cel: Zakup mieszkania
+Wartość: 800,000 zł
+Wkład własny: 20%
+Okres: 25 lat
+"""
+            )
+    
+    # ------------------------------------------------------------------------
+    # TRYB 3: EDYTOR FORMULARZA
+    # ------------------------------------------------------------------------
+    else:  # "✏️ Edytor formularza"
+        st.markdown("##### ✏️ Interaktywny edytor z szablonami")
+        st.caption("Wypełnij formularz pole po polu z podpowiedziami")
+        
+        with st.form("customer_profile_form"):
+            # ================================================================
+            # SEKCJA 1: DANE OSOBOWE
+            # ================================================================
+            st.markdown("### 👤 DANE OSOBOWE")
+            
+            col_age1, col_age2 = st.columns(2)
+            with col_age1:
+                age_template = st.selectbox(
+                    "Szablon wieku kredytobiorcy:",
+                    options=["Wybierz..."] + FORM_FIELD_TEMPLATES["age_templates"],
+                    key="age_template"
+                )
+                age_main = st.text_input(
+                    "⚠️ Wiek kredytobiorcy (WYMAGANE):",
+                    value=age_template.split(" ")[0] if age_template != "Wybierz..." else "",
+                    placeholder="np. 35",
+                    key="age_main"
+                )
+            
+            with col_age2:
+                has_co_borrower = st.checkbox("Współkredytobiorca?", key="has_co")
+                age_co = ""
+                if has_co_borrower:
+                    age_co = st.text_input(
+                        "Wiek współkredytobiorcy:",
+                        placeholder="np. 33",
+                        key="age_co"
+                    )
+            
+            # Status związku
+            relationship_status = st.selectbox(
+                "Status związku:",
+                options=["Wybierz...", "Małżeństwo", "Związek nieformalny", "Single", "Rozdzielność majątkowa"],
+                key="relationship_status"
+            )
+            
+            # Obywatelstwo
+            col_cit1, col_cit2 = st.columns(2)
+            with col_cit1:
+                is_polish_citizen = st.checkbox("Obywatel Polski", value=True, key="is_polish")
+            with col_cit2:
+                if not is_polish_citizen:
+                    has_residence_card = st.checkbox("Karta pobytu", key="has_residence")
+                    if has_residence_card:
+                        residence_type = st.radio("Typ karty:", ["Stały", "Czasowy"], key="residence_type", horizontal=True)
+            
+            # ================================================================
+            # SEKCJA 2: DOCHODY KREDYTOBIORCY
+            # ================================================================
+            st.markdown("---")
+            st.markdown("### 💰 DOCHODY - KREDYTOBIORCA")
+            
+            income_type_main = st.selectbox(
+                "⚠️ Typ dochodu (WYMAGANE):",
+                options=["Wybierz..."] + list(FORM_FIELD_TEMPLATES["income_type_templates"].keys()),
+                key="income_type_main",
+                help="Wybierz rodzaj zatrudnienia/dochodu"
+            )
+            
+            if income_type_main != "Wybierz...":
+                st.info(f"💡 {FORM_FIELD_TEMPLATES['income_type_templates'][income_type_main]}")
+            
+            col_inc1, col_inc2 = st.columns(2)
+            with col_inc1:
+                duration_template = st.selectbox(
+                    "Szablon stażu pracy:",
+                    options=["Wybierz..."] + FORM_FIELD_TEMPLATES["employment_duration_templates"],
+                    key="duration_template"
+                )
+                employment_duration = st.text_input(
+                    "⚠️ Staż pracy w miesiącach (WYMAGANE):",
+                    value=duration_template.split(" ")[0] if duration_template != "Wybierz..." else "",
+                    placeholder="np. 60 (5 lat)",
+                    key="duration_main"
+                )
+            
+            with col_inc2:
+                income_template = st.selectbox(
+                    "Szablon dochodu:",
+                    options=["Wybierz..."] + FORM_FIELD_TEMPLATES["income_templates"],
+                    key="income_template"
+                )
+                monthly_income = st.text_input(
+                    "Dochód miesięczny netto (zł):",
+                    value=income_template.split(" ")[0].replace(",", "") if income_template != "Wybierz..." else "",
+                    placeholder="np. 10000",
+                    key="income_main"
+                )
+            
+            # ================================================================
+            # SEKCJA 3: DOCHODY WSPÓŁKREDYTOBIORCY
+            # ================================================================
+            if has_co_borrower:
+                st.markdown("---")
+                st.markdown("### 👥 DOCHODY - WSPÓŁKREDYTOBIORCA")
+                
+                income_type_co = st.selectbox(
+                    "Typ dochodu współkredytobiorcy:",
+                    options=["Wybierz..."] + list(FORM_FIELD_TEMPLATES["income_type_templates"].keys()),
+                    key="income_type_co"
+                )
+                
+                col_co1, col_co2 = st.columns(2)
+                with col_co1:
+                    duration_co = st.text_input("Staż pracy (miesiące):", placeholder="np. 36", key="duration_co")
+                with col_co2:
+                    income_co = st.text_input("Dochód miesięczny (zł):", placeholder="np. 8000", key="income_co")
+            
+            # ================================================================
+            # SEKCJA 4: CEL KREDYTU
+            # ================================================================
+            st.markdown("---")
+            st.markdown("### 🎯 CEL KREDYTU")
+            
+            loan_purpose = st.selectbox(
+                "⚠️ Cel kredytu (WYMAGANE):",
+                options=["Wybierz..."] + list(FORM_FIELD_TEMPLATES["loan_purpose_templates"].keys()),
+                key="loan_purpose"
+            )
+            
+            if loan_purpose != "Wybierz...":
+                st.info(f"💡 {FORM_FIELD_TEMPLATES['loan_purpose_templates'][loan_purpose]}")
+            
+            # ================================================================
+            # SEKCJA 5: PARAMETRY KREDYTU
+            # ================================================================
+            st.markdown("---")
+            st.markdown("### 💳 PARAMETRY KREDYTU")
+            
+            col_val1, col_val2 = st.columns(2)
+            with col_val1:
+                value_template = st.selectbox(
+                    "Szablon wartości:",
+                    options=["Wybierz..."] + FORM_FIELD_TEMPLATES["property_value_templates"],
+                    key="value_template"
+                )
+                property_value = st.text_input(
+                    "⚠️ Wartość nieruchomości (zł) - WYMAGANE:",
+                    value=value_template.split(" ")[0].replace(",", "") if value_template != "Wybierz..." else "",
+                    placeholder="np. 800000",
+                    key="property_value"
+                )
+            
+            with col_val2:
+                down_payment_template = st.selectbox(
+                    "Szablon wkładu:",
+                    options=["Wybierz..."] + FORM_FIELD_TEMPLATES["down_payment_templates"],
+                    key="down_payment_template"
+                )
+                down_payment_pct = st.text_input(
+                    "Wkład własny (%):",
+                    value=down_payment_template.split("%")[0] if down_payment_template != "Wybierz..." else "",
+                    placeholder="np. 20",
+                    key="down_payment"
+                )
+            
+            col_per1, col_per2 = st.columns(2)
+            with col_per1:
+                period_template = st.selectbox(
+                    "Okres kredytowania:",
+                    options=["Wybierz..."] + FORM_FIELD_TEMPLATES["loan_period_templates"],
+                    key="period_template"
+                )
+                loan_period = st.text_input(
+                    "Okres (lata):",
+                    value=period_template.split(" ")[0] if period_template != "Wybierz..." else "",
+                    placeholder="np. 25",
+                    key="loan_period"
+                )
+            
+            with col_per2:
+                currency = st.selectbox(
+                    "Waluta:",
+                    options=["PLN", "EUR", "USD", "CHF"],
+                    key="currency"
+                )
+            
+            # Dodatkowe parametry
+            with st.expander("⚙️ Parametry dodatkowe (opcjonalne)", expanded=False):
+                col_add1, col_add2 = st.columns(2)
+                with col_add1:
+                    grace_period = st.text_input("Karencja (miesiące):", placeholder="np. 12", key="grace_period")
+                    fixed_rate_period = st.text_input("Stałe oprocentowanie (lata):", placeholder="np. 5", key="fixed_rate")
+                    eco_friendly = st.checkbox("Kredyt EKO (energooszczędny)", key="eco_friendly")
+                
+                with col_add2:
+                    existing_mortgages = st.text_input("Liczba kredytów hipotecznych:", placeholder="np. 0", key="existing_mortgages")
+                    refinancing_months = st.text_input("Refinansowanie (miesięcy wstecz):", placeholder="np. 12", key="refinancing_months")
+                    consolidation_amount = st.text_input("Konsolidacja (zł):", placeholder="np. 50000", key="consolidation_amount")
+            
+            # ================================================================
+            # SEKCJA 6: NIERUCHOMOŚĆ
+            # ================================================================
+            st.markdown("---")
+            st.markdown("### 🏡 NIERUCHOMOŚĆ")
+            
+            property_type = st.selectbox(
+                "Typ nieruchomości:",
+                options=["Wybierz..."] + list(FORM_FIELD_TEMPLATES["property_type_templates"].keys()),
+                key="property_type"
+            )
+            
+            if property_type != "Wybierz...":
+                st.info(f"💡 {FORM_FIELD_TEMPLATES['property_type_templates'][property_type]}")
+            
+            col_loc1, col_loc2 = st.columns(2)
+            with col_loc1:
+                location_template = st.selectbox(
+                    "Szablon lokalizacji:",
+                    options=["Wybierz..."] + FORM_FIELD_TEMPLATES["location_templates"],
+                    key="location_template"
+                )
+                location = st.text_input(
+                    "Lokalizacja:",
+                    value=location_template.split(" ")[0] if location_template != "Wybierz..." else "",
+                    placeholder="np. Warszawa",
+                    key="location"
+                )
+            
+            with col_loc2:
+                property_area = st.text_input("Powierzchnia (m²):", placeholder="np. 75", key="property_area")
+                plot_area = st.text_input("Powierzchnia działki (m²):", placeholder="np. 1000", key="plot_area")
+            
+            # Dodatkowe parametry nieruchomości
+            with st.expander("🏗️ Parametry dodatkowe nieruchomości (opcjonalne)", expanded=False):
+                col_prop1, col_prop2 = st.columns(2)
+                with col_prop1:
+                    has_building_permit = st.checkbox("Pozwolenie na budowę", key="building_permit")
+                    construction_cost = st.text_input("Koszt budowy za m² (zł):", placeholder="np. 3500", key="construction_cost")
+                    commercial_percent = st.text_input("% powierzchni komercyjnej:", placeholder="np. 30", key="commercial_percent")
+                
+                with col_prop2:
+                    is_family_transaction = st.checkbox("Transakcja rodzinna", key="family_transaction")
+                    is_shared_ownership = st.checkbox("Zakup udziału", key="shared_ownership")
+                    ownership_percent = st.text_input("% udziału:", placeholder="np. 50", key="ownership_percent")
+                    third_party_collateral = st.checkbox("Zabezpieczenie osoby trzeciej", key="third_party")
+                    plot_as_down = st.checkbox("Działka jako wkład własny", key="plot_as_down")
+            
+            # ================================================================
+            # PRZYCISK GENEROWANIA
+            # ================================================================
+            st.markdown("---")
+            submitted = st.form_submit_button("✅ Generuj opis profilu", type="primary", use_container_width=True)
+            
+            if submitted:
+                # ============================================================
+                # GENEROWANIE OPISU Z WYPEŁNIONYCH PÓL
+                # ============================================================
+                description_parts = []
+                
+                # --------------------------------------------------------
+                # DANE OSOBOWE
+                # --------------------------------------------------------
+                personal_info = []
+                if age_main:
+                    personal_info.append(f"Kredytobiorca: {age_main} lat")
+                if has_co_borrower and age_co:
+                    personal_info.append(f"Współkredytobiorca: {age_co} lat")
+                if relationship_status != "Wybierz...":
+                    personal_info.append(f"Status: {relationship_status}")
+                if not is_polish_citizen:
+                    personal_info.append("Cudzoziemiec")
+                    if has_residence_card:
+                        personal_info.append(f"Karta pobytu: {residence_type}")
+                
+                if personal_info:
+                    description_parts.append("\n".join(personal_info))
+                
+                # --------------------------------------------------------
+                # DOCHODY KREDYTOBIORCY
+                # --------------------------------------------------------
+                if income_type_main != "Wybierz...":
+                    income_info = f"\nDOCHÓD KREDYTOBIORCY:\n- Typ: {income_type_main}"
+                    if employment_duration:
+                        income_info += f"\n- Staż: {employment_duration} miesięcy"
+                    if monthly_income:
+                        income_info += f"\n- Dochód miesięczny netto: {monthly_income} zł"
+                    description_parts.append(income_info)
+                
+                # --------------------------------------------------------
+                # DOCHODY WSPÓŁKREDYTOBIORCY
+                # --------------------------------------------------------
+                if has_co_borrower and income_type_co and income_type_co != "Wybierz...":
+                    co_income_info = f"\nDOCHÓD WSPÓŁKREDYTOBIORCY:\n- Typ: {income_type_co}"
+                    if duration_co:
+                        co_income_info += f"\n- Staż: {duration_co} miesięcy"
+                    if income_co:
+                        co_income_info += f"\n- Dochód miesięczny netto: {income_co} zł"
+                    description_parts.append(co_income_info)
+                
+                # --------------------------------------------------------
+                # CEL KREDYTU
+                # --------------------------------------------------------
+                if loan_purpose != "Wybierz...":
+                    description_parts.append(f"\nCEL KREDYTU:\n{loan_purpose}")
+                
+                # --------------------------------------------------------
+                # PARAMETRY KREDYTU
+                # --------------------------------------------------------
+                params_info = "\nPARAMETRY KREDYTU:"
+                added_params = False
+                
+                if property_value:
+                    params_info += f"\n- Wartość nieruchomości: {property_value} zł"
+                    added_params = True
+                
+                if down_payment_pct:
+                    params_info += f"\n- Wkład własny: {down_payment_pct}%"
+                    added_params = True
+                    if property_value:
+                        try:
+                            down_amt = int(property_value) * int(down_payment_pct) / 100
+                            loan_amt = int(property_value) - down_amt
+                            params_info += f"\n- Kwota wkładu: {int(down_amt):,} zł"
+                            params_info += f"\n- Kwota kredytu: {int(loan_amt):,} zł"
+                            params_info += f"\n- LTV: {100 - int(down_payment_pct)}%"
+                        except:
+                            pass
+                
+                if loan_period:
+                    params_info += f"\n- Okres kredytowania: {loan_period} lat"
+                    added_params = True
+                
+                if currency and currency != "PLN":
+                    params_info += f"\n- Waluta: {currency}"
+                    added_params = True
+                
+                # Parametry dodatkowe
+                if grace_period:
+                    params_info += f"\n- Karencja kapitałowa: {grace_period} miesięcy"
+                    added_params = True
+                if fixed_rate_period:
+                    params_info += f"\n- Oprocentowanie stałe: {fixed_rate_period} lat"
+                    added_params = True
+                if eco_friendly:
+                    params_info += f"\n- Kredyt EKO: TAK (energooszczędny)"
+                    added_params = True
+                if existing_mortgages:
+                    params_info += f"\n- Liczba istniejących kredytów hipotecznych: {existing_mortgages}"
+                    added_params = True
+                if refinancing_months:
+                    params_info += f"\n- Refinansowanie wydatków ({refinancing_months} miesięcy wstecz)"
+                    added_params = True
+                if consolidation_amount:
+                    params_info += f"\n- Konsolidacja zobowiązań: {consolidation_amount} zł"
+                    added_params = True
+                
+                if added_params:
+                    description_parts.append(params_info)
+                
+                # --------------------------------------------------------
+                # NIERUCHOMOŚĆ
+                # --------------------------------------------------------
+                property_info = "\nNIERUCHOMOŚĆ:"
+                added_property = False
+                
+                if property_type != "Wybierz...":
+                    property_info += f"\n- Typ: {property_type}"
+                    added_property = True
+                if location:
+                    property_info += f"\n- Lokalizacja: {location}"
+                    added_property = True
+                if property_area:
+                    property_info += f"\n- Powierzchnia: {property_area} m²"
+                    added_property = True
+                if plot_area:
+                    property_info += f"\n- Powierzchnia działki: {plot_area} m²"
+                    added_property = True
+                
+                # Parametry dodatkowe nieruchomości
+                if has_building_permit:
+                    property_info += f"\n- Pozwolenie na budowę: TAK"
+                    added_property = True
+                if construction_cost:
+                    property_info += f"\n- Koszt budowy: {construction_cost} zł/m²"
+                    added_property = True
+                if commercial_percent:
+                    property_info += f"\n- Powierzchnia komercyjna: {commercial_percent}%"
+                    added_property = True
+                if is_family_transaction:
+                    property_info += f"\n- Transakcja rodzinna: TAK"
+                    added_property = True
+                if is_shared_ownership:
+                    property_info += f"\n- Zakup udziału: TAK"
+                    added_property = True
+                    if ownership_percent:
+                        property_info += f"\n- Udział: {ownership_percent}%"
+                if third_party_collateral:
+                    property_info += f"\n- Zabezpieczenie osoby trzeciej: TAK"
+                    added_property = True
+                if plot_as_down:
+                    property_info += f"\n- Działka jako wkład własny: TAK"
+                    added_property = True
+                
+                if added_property:
+                    description_parts.append(property_info)
+                
+                # --------------------------------------------------------
+                # --------------------------------------------------------
+                # POŁĄCZ WSZYSTKO
+                # --------------------------------------------------------
+                user_description = "\n".join(description_parts)
+                
+                # Zapisz do session state
+                st.session_state['generated_description'] = user_description
+        
+        # Wyświetl wygenerowany opis (poza formularzem)
+        if 'generated_description' in st.session_state:
+            user_description = st.text_area(
+                "Wygenerowany opis profilu (możesz edytować przed analizą):",
+                value=st.session_state['generated_description'],
+                height=350,
+                key="final_description"
+            )
     
     # Przycisk analizy
     analyze_button = st.button(
@@ -470,18 +913,18 @@ Okres 25 lat
         
         with st.spinner(spinner_text):
             try:
-                # Przekaż zmapowany profil jako context
-                profile_context = json.dumps(st.session_state.mapped_profile_json, ensure_ascii=False, indent=2)
+                # Pobierz strategię jakości z session state
+                quality_strategy = st.session_state.get('quality_strategy', 'individual')
                 
-                # Uruchom system dwupromptowy z wybranymi modelami
-                result = st.session_state.engine.ai_client.query_two_stage(
-                    user_query=user_description,
-                    knowledge_base_context=st.session_state.engine.data_processor.format_compact_for_context(),
-                    etap1_model=etap1,
-                    etap2_model=etap2,
-                    use_async=use_async_mode,
-                    knowledge_base_dict=st.session_state.engine.data_processor.knowledge_base,
-                    customer_profile=st.session_state.customer_profile  # Przekaż zmapowany profil
+                # Uruchom system V3 z orchestratorem (nowa architektura serwisów)
+                result = asyncio.run(
+                    st.session_state.engine.process_query_v3(
+                        user_query=user_description,
+                        customer_profile=st.session_state.customer_profile,  # Zmapowany profil
+                        etap1_model=etap1,
+                        etap2_model=etap2,
+                        quality_strategy=quality_strategy  # Nowy parametr!
+                    )
                 )
                 
                 if not result.get("error"):
@@ -491,6 +934,30 @@ Okres 25 lat
                     if validation_json:
                         st.session_state.validation_result = validation_json
                         st.session_state.ranking_result = result["stage2_ranking"]
+                        
+                        # Pobierz surowe dane z orchestratora
+                        stage1_data = result.get("stage1_data", validation_json)
+                        stage2_data = result.get("stage2_data", {})
+                        strategy = result.get("quality_strategy", "individual")
+                        
+                        # Zapisz strategię do session_state, aby była dostępna w UI
+                        st.session_state.used_quality_strategy = strategy
+                        
+                        # Stwórz mapę quality scores po nazwie banku (obsługuje obie strategie)
+                        quality_scores_map = {}
+                        
+                        if strategy == "comparative":
+                            # Nowa strategia: stage2_data = {"ranking": [...], "weights": {...}, "market_stats": {...}}
+                            for score_dict in stage2_data.get("ranking", []):
+                                bank_name = score_dict.get("bank_name")
+                                if bank_name:
+                                    quality_scores_map[bank_name] = score_dict
+                        else:
+                            # Stara strategia: stage2_data = {"scores": [...]}
+                            for score_dict in stage2_data.get("scores", []):
+                                bank_name = score_dict.get("bank_name")
+                                if bank_name:
+                                    quality_scores_map[bank_name] = score_dict
                         
                         # DEBUG: Pokaż fragment rankingu w konsoli
                         print("\n" + "="*80)
@@ -503,58 +970,51 @@ Okres 25 lat
                         st.session_state.qualified_banks = []
                         st.session_state.disqualified_banks = []
                         
-                        for bank in validation_json.get("qualified_banks", []):
+                        for bank in stage1_data.get("qualified_banks", []):
                             bank_name = bank["bank_name"]
-                            score = extract_bank_score(result["stage2_ranking"], bank_name)
-                            reasons = extract_top_reasons(result["stage2_ranking"], bank_name)
                             
-                            # Debug - wyświetl jeśli nie znaleziono score
-                            if score is None:
-                                print(f"⚠️ Nie znaleziono punktacji dla: {bank_name}")
-                                # Fallback - przypisz 0 zamiast None
-                                score = 0
-                            
-                            # Obsługa obu formatów (stary i nowy async)
-                            # Nowy format: spelnione_wymogi, niespelnione_wymogi
-                            # Stary format: requirements_met, requirements_total
-                            if "spelnione_wymogi" in bank:
-                                # Nowy format async
-                                requirements_met = len(bank.get("spelnione_wymogi", []))
-                                requirements_total = requirements_met + len(bank.get("niespelnione_wymogi", []))
-                            else:
-                                # Stary format
-                                requirements_met = bank.get("requirements_met", 0)
-                                requirements_total = bank.get("requirements_total", 0)
+                            # Pobierz dane jakości bezpośrednio z stage2_data
+                            quality_data = quality_scores_map.get(bank_name, {})
                             
                             bank_info = {
                                 "name": bank_name,
                                 "status": "qualified",
-                                "score": score,
-                                "reasons": reasons,
-                                "requirements_met": requirements_met,
-                                "requirements_total": requirements_total
+                                "score": quality_data.get("total_score", 0),
+                                "category_breakdown": quality_data.get("breakdown", {}),
+                                "key_strengths": quality_data.get("kluczowe_atuty", quality_data.get("strengths", [])),
+                                "key_weaknesses": quality_data.get("punkty_uwagi", quality_data.get("weaknesses", [])),
+                                "competitive_advantages": quality_data.get("competitive_advantages", []),
+                                "checked_parameters": quality_data.get("checked_parameters", []),
+                                "scoring_method": quality_data.get("scoring_method", quality_data.get("reasoning", "")),
+                                "requirements_count": len(bank.get("sprawdzone_wymogi", [])),
+                                "sprawdzone_wymogi": bank.get("sprawdzone_wymogi", []),
+                                # Nowe pola z porównawczej strategii
+                                "rank": quality_data.get("rank"),
+                                "percentile": quality_data.get("percentile"),
+                                "better_than": quality_data.get("better_than", []),
+                                "worse_than": quality_data.get("worse_than", []),
+                                "raw_validation": bank,
+                                "raw_quality": quality_data
                             }
                             st.session_state.qualified_banks.append(bank_info)
                         
-                        for bank in validation_json.get("disqualified_banks", []):
-                            # Obsługa obu formatów
-                            if "kluczowe_problemy" in bank:
-                                # Nowy format async
-                                critical_issues = bank.get("kluczowe_problemy", [])
-                                requirements_met = len(bank.get("spelnione_wymogi", []))
-                                requirements_total = requirements_met + len(bank.get("niespelnione_wymogi", []))
-                            else:
-                                # Stary format
-                                critical_issues = bank.get("critical_issues", [])
-                                requirements_met = bank.get("requirements_met", 0)
-                                requirements_total = bank.get("requirements_total", 0)
+                        for bank in stage1_data.get("disqualified_banks", []):
+                            bank_name = bank["bank_name"]
+                            
+                            # Nowy format V3
+                            sprawdzone = bank.get("sprawdzone_wymogi", [])
+                            niespelnione = bank.get("niespelnione_wymogi", [])
+                            kluczowe_problemy = bank.get("kluczowe_problemy", [])
                             
                             bank_info = {
-                                "name": bank["bank_name"],
+                                "name": bank_name,
                                 "status": "disqualified",
-                                "critical_issues": critical_issues,
-                                "requirements_met": requirements_met,
-                                "requirements_total": requirements_total
+                                "critical_issues": kluczowe_problemy,
+                                "requirements_count": len(sprawdzone),
+                                "unmet_count": len(niespelnione),
+                                "sprawdzone_wymogi": sprawdzone,
+                                "niespelnione_wymogi": niespelnione,
+                                "raw_validation": bank
                             }
                             st.session_state.disqualified_banks.append(bank_info)
                         
@@ -615,36 +1075,101 @@ with col2:
                     else:
                         st.markdown(f"**{emoji} {bank_name}**")
                     
-                    # Wymogi spełnione
-                    st.caption(f"Wymogi: {bank_info['requirements_met']}/{bank_info['requirements_total']} ✅")
+                    # Wymogi sprawdzone
+                    req_count = bank_info.get('requirements_count', 0)
+                    st.caption(f"✅ Sprawdzono {req_count} wymogów - wszystkie spełnione")
                 
                 with cols[2]:
                     # Przycisk szczegółów
                     with st.popover("📊 Szczegóły", use_container_width=True):
                         st.markdown(f"### {bank_name}")
                         
+                        # ETAP 2: Punktacja jakości
                         if bank_info.get("score"):
-                            st.metric("Punktacja", f"{bank_info['score']}/100")
+                            st.markdown("#### 🏅 ETAP 2: Ocena Jakości")
+                            
+                            # Punktacja końcowa z emoji
+                            score = bank_info['score']
+                            if score >= 80:
+                                emoji = "🌟"
+                            elif score >= 60:
+                                emoji = "✅"
+                            else:
+                                emoji = "⚠️"
+                            
+                            # Pokaż punktację z percentylem (jeśli dostępny)
+                            percentile = bank_info.get("percentile")
+                            rank = bank_info.get("rank")
+                            used_strategy = st.session_state.get("used_quality_strategy", "individual")
+                            
+                            if percentile is not None and used_strategy == "comparative":
+                                st.metric(
+                                    "Punktacja końcowa", 
+                                    f"{score}/100 pkt {emoji}",
+                                    delta=f"TOP {100-percentile:.0f}% (#{rank})"
+                                )
+                            else:
+                                st.metric("Punktacja końcowa", f"{score}/100 pkt {emoji}")
+                            
+                            # Breakdown według kategorii
+                            if bank_info.get("category_breakdown"):
+                                st.markdown("**📊 Rozbicie punktacji:**")
+                                breakdown = bank_info["category_breakdown"]
+                                
+                                for category, score_val in breakdown.items():
+                                    st.markdown(f"**{category}**: {score_val} pkt")
+                                    st.progress(min(score_val / 50, 1.0))
+                            
+                            # Kluczowe atuty
+                            if bank_info.get("key_strengths"):
+                                st.markdown("**✅ Kluczowe atuty:**")
+                                for atut in bank_info["key_strengths"][:5]:
+                                    st.markdown(f"- {atut}")
+                            
+                            # Przewagi konkurencyjne (tylko dla strategii comparative)
+                            if bank_info.get("competitive_advantages") and used_strategy == "comparative":
+                                st.markdown("**⭐ Przewagi konkurencyjne:**")
+                                for przewaga in bank_info["competitive_advantages"][:3]:
+                                    st.markdown(f"- {przewaga}")
+                            
+                            # Punkty uwagi
+                            if bank_info.get("key_weaknesses"):
+                                st.markdown("**⚠️ Punkty uwagi:**")
+                                for uwaga in bank_info["key_weaknesses"][:3]:
+                                    st.markdown(f"- {uwaga}")
+                            
+                            # Metodologia
+                            if bank_info.get("scoring_method"):
+                                with st.expander("🔍 Metodologia oceny"):
+                                    st.caption(bank_info["scoring_method"])
                         
-                        st.markdown("**Główne atuty:**")
-                        for reason in bank_info.get("reasons", []):
-                            st.markdown(f"✓ {reason}")
+                        st.markdown("---")
                         
-                        # Link do pełnego raportu
-                        if st.session_state.ranking_result:
-                            with st.expander("📄 Pełny raport"):
-                                st.markdown(st.session_state.ranking_result)
+                        # ETAP 1: Walidacja wymogów
+                        st.markdown("#### ✅ ETAP 1: Walidacja Wymogów")
+                        sprawdzone = bank_info.get("sprawdzone_wymogi", [])
+                        
+                        if sprawdzone:
+                            st.success(f"**Sprawdzono {len(sprawdzone)} wymogów - wszystkie spełnione** ✅")
+                            
+                            with st.expander(f"📋 Szczegóły walidacji ({len(sprawdzone)} wymogów)"):
+                                for i, wymog in enumerate(sprawdzone, 1):
+                                    st.markdown(f"{i}. ✓ {wymog}")
+                        else:
+                            st.info("Brak szczegółowych danych walidacji")
     else:
         st.info("👈 Wprowadź profil klienta i kliknij 'Znajdź pasujące oferty'")
         st.markdown("""
-        **System dwupromptowy analizuje:**
-        - ✅ **ETAP 1**: Walidacja 68 WYMOGÓW (kwalifikacja)
-        - 🏅 **ETAP 2**: Ranking 19 JAKOŚCI (punktacja 0-100)
+        **System trzyetapowy analizuje:**
+        - ✅ **ETAP 1**: Walidacja WYMOGÓW (kwalifikacja/dyskwalifikacja)
+        - 🏅 **ETAP 2**: Ranking JAKOŚCI (punktacja 0-100)
+        - 🏆 **ETAP 3**: TOP 4 z pełnym raportem
         
         **Otrzymasz:**
-        - Lista zakwalifikowanych banków
-        - TOP 4 ranking z uzasadnieniem
-        - Szczegółowe powody odrzucenia
+        - Lista zakwalifikowanych banków z punktacją
+        - Szczegółową walidację wymogów dla każdego banku
+        - Breakdown punktacji według 5 kategorii jakości
+        - TOP 4 ranking z uzasadnieniem i rekomendacją
         """)
 
 with col3:
@@ -669,21 +1194,32 @@ with col3:
                     st.markdown(f"**{bank_name}**")
                     
                     # Wymogi niespełnione
-                    unmet = bank_info['requirements_total'] - bank_info['requirements_met']
-                    st.caption(f"Niespełnione wymogi: {unmet}")
+                    unmet = bank_info.get('unmet_count', 0)
+                    req_count = bank_info.get('requirements_count', 0)
+                    st.caption(f"❌ Niespełnione: {unmet} | ✅ Sprawdzono: {req_count}")
                     
                     # Główne problemy
                     critical_issues = bank_info.get("critical_issues", [])
                     if critical_issues:
                         st.markdown("**Powody odrzucenia:**")
                         for issue in critical_issues[:2]:  # Max 2 powody
-                            st.markdown(f"<span style='color: #f44336; font-size: 0.9em;'>{issue}</span>", 
+                            st.markdown(f"<span style='color: #f44336; font-size: 0.9em;'>⚠️ {issue}</span>", 
                                       unsafe_allow_html=True)
                         
                         if len(critical_issues) > 2:
                             with st.expander(f"+ {len(critical_issues) - 2} więcej"):
                                 for issue in critical_issues[2:]:
-                                    st.markdown(f"- {issue}")
+                                    st.markdown(f"⚠️ {issue}")
+                        
+                        # Pokaż szczegóły walidacji
+                        with st.expander("📋 Szczegóły walidacji"):
+                            st.markdown("**✅ Spełnione wymogi:**")
+                            for wymog in bank_info.get("sprawdzone_wymogi", [])[:5]:
+                                st.markdown(f"✓ {wymog}")
+                            
+                            st.markdown("**❌ Niespełnione wymogi:**")
+                            for wymog in bank_info.get("niespelnione_wymogi", []):
+                                st.markdown(f"✗ {wymog}")
     else:
         if st.session_state.qualified_banks:
             st.success("🎉 Wszystkie banki zakwalifikowane!")
@@ -845,9 +1381,32 @@ with st.sidebar:
         help="Model do walidacji parametrów eliminujących. Rekomendacja: gpt-4.1 lub o4-mini dla szybkości"
     )
     
+    # Wybór strategii dla ETAP 2 (nowe!)
+    st.markdown("#### 🏅 ETAP 2: Scoring JAKOŚCI")
+    
+    quality_strategy = st.radio(
+        "Strategia oceny jakości:",
+        options=["individual", "comparative"],
+        format_func=lambda x: {
+            "individual": "🔢 Indywidualna (każdy bank osobno)",
+            "comparative": "🏆 Porównawcza (benchmarking rynkowy)"
+        }[x],
+        index=1,  # domyślnie comparative
+        help="""
+**Indywidualna:** Każdy bank oceniany w izolacji (szybsze, ale brak kontekstu).
+
+**Porównawcza (NOWA!):** 
+- Wszystkie banki oceniane razem z kontekstem rynkowym
+- Dynamiczne wagi dostrojone do profilu klienta
+- Benchmarking min-max (najlepszy = 100, najgorszy = 0)
+- Percentyle i przewagi konkurencyjne
+- 1 wywołanie LLM zamiast 11 (szybciej + taniej)
+"""
+    )
+    
     # Wybór modelu dla ETAP 2 (Ranking)
     etap2_model = st.selectbox(
-        "🏅 Model ETAP 2 (Ranking JAKOŚCI)",
+        "Model do scoringu jakości:",
         available_models,
         index=0,  # domyślnie gpt-4.1
         help="Model do rankingu parametrów jakościowych. Rekomendacja: gpt-4.1 dla najlepszej jakości"
@@ -864,6 +1423,7 @@ with st.sidebar:
     st.session_state.mapper_model = mapper_model
     st.session_state.etap1_model = etap1_model
     st.session_state.etap2_model = etap2_model
+    st.session_state.quality_strategy = quality_strategy  # Nowe!
     st.session_state.use_async = use_async
     
     st.markdown("---")
