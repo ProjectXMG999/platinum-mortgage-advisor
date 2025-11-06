@@ -36,10 +36,11 @@ class OrchestratorService:
         customer_profile = None,
         etap1_model: str = None,
         etap2_model: str = None,
-        quality_strategy: Literal["individual", "comparative"] = "individual"
+        quality_strategy: Literal["individual", "comparative"] = "individual",
+        skip_quality_scoring: bool = False
     ) -> Dict[str, str]:
         """
-        Główna metoda - dwuetapowe przetwarzanie zapytania
+        Główna metoda - dwuetapowe przetwarzanie zapytania (z opcją pominięcia ETAP 2)
         
         Args:
             knowledge_base: Pełna baza wiedzy (Dict z listą products)
@@ -50,17 +51,22 @@ class OrchestratorService:
             quality_strategy: Strategia scoringu jakości:
                 - "individual": Każdy bank osobno (domyślnie)
                 - "comparative": Porównawczy batch scoring
+            skip_quality_scoring: Jeśli True, pomija ETAP 2 (tylko walidacja)
             
         Returns:
-            Dict z wynikami obu etapów
+            Dict z wynikami obu etapów (lub tylko ETAP 1 jeśli skip_quality_scoring=True)
         """
         print("\n" + "="*80)
-        print("🚀 DWUETAPOWY SYSTEM DOPASOWANIA KREDYTÓW")
+        if skip_quality_scoring:
+            print("🚀 TRYB: TYLKO WALIDACJA BANKÓW (szybki)")
+        else:
+            print("🚀 DWUETAPOWY SYSTEM DOPASOWANIA KREDYTÓW")
         if customer_profile:
             print("📋 Tryb: ZMAPOWANY PROFIL (inteligentna walidacja)")
         else:
             print("📋 Tryb: SUROWY INPUT (pełna walidacja)")
-        print(f"⚙️  Strategia ETAP 2: {quality_strategy.upper()}")
+        if not skip_quality_scoring:
+            print(f"⚙️  Strategia ETAP 2: {quality_strategy.upper()}")
         print("="*80 + "\n")
         
         # ETAP 1: Walidacja WYMOGÓW (równolegle dla wszystkich banków)
@@ -92,7 +98,25 @@ class OrchestratorService:
                 "stage2_ranking": "❌ Żaden bank nie spełnia wymogów klienta",
                 "error": False,
                 "qualified_banks": [],
-                "quality_strategy": quality_strategy
+                "quality_strategy": quality_strategy,
+                "skip_quality_scoring": skip_quality_scoring
+            }
+        
+        # Jeśli tryb tylko walidacji - zakończ tutaj
+        if skip_quality_scoring:
+            print("\n" + "="*80)
+            print("✅ WALIDACJA ZAKOŃCZONA (tryb szybki - bez oceny jakości)")
+            print("="*80 + "\n")
+            
+            return {
+                "stage1_validation": validation_response,
+                "stage1_data": validation_data,
+                "stage2_ranking": None,  # Brak etapu 2
+                "stage2_data": None,
+                "error": False,
+                "qualified_banks": qualified,
+                "quality_strategy": None,
+                "skip_quality_scoring": True
             }
         
         # ETAP 2: Ranking JAKOŚCI (wybór strategii)

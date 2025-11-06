@@ -48,7 +48,8 @@ class QueryEngine:
         customer_profile = None,
         etap1_model: str = None,
         etap2_model: str = None,
-        quality_strategy: str = "individual"
+        quality_strategy: str = "individual",
+        skip_quality_scoring: bool = False
     ) -> Dict:
         """
         V3: Przetwarza zapytanie używając nowego orchestratora (services architecture)
@@ -59,15 +60,20 @@ class QueryEngine:
             etap1_model: Model do ETAP 1 (walidacja), None = domyślny
             etap2_model: Model do ETAP 2 (ranking), None = domyślny
             quality_strategy: "individual" lub "comparative" dla scoringu jakości
+            skip_quality_scoring: Jeśli True, pomija ETAP 2 (tylko walidacja)
             
         Returns:
             Dict z wynikami: {"stage1_validation": str, "stage2_ranking": str, "error": bool, "qualified_banks": list}
         """
         print("\n" + "="*80)
-        print("🚀 TRZYETAPOWY SYSTEM DOPASOWANIA KREDYTÓW")
+        if skip_quality_scoring:
+            print("🚀 TRYB: TYLKO WALIDACJA BANKÓW")
+        else:
+            print("🚀 TRZYETAPOWY SYSTEM DOPASOWANIA KREDYTÓW")
         print("⚡ Tryb: ASYNC PARALLEL")
         print(f"📋 Profil zmapowany: {'TAK' if customer_profile else 'NIE'}")
-        print(f"🏆 Strategia ETAP 2: {quality_strategy.upper()}")
+        if not skip_quality_scoring:
+            print(f"🏆 Strategia ETAP 2: {quality_strategy.upper()}")
         print("="*80 + "\n")
         
         # Wywołaj orchestrator
@@ -77,7 +83,8 @@ class QueryEngine:
             customer_profile=customer_profile,
             etap1_model=etap1_model,
             etap2_model=etap2_model,
-            quality_strategy=quality_strategy  # Nowy parametr!
+            quality_strategy=quality_strategy,
+            skip_quality_scoring=skip_quality_scoring  # Nowy parametr!
         )
         
         return result

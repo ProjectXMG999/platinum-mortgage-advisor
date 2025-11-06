@@ -876,6 +876,7 @@ Okres: 25 lat
         etap1 = st.session_state.get('etap1_model', 'gpt-4.1')
         etap2 = st.session_state.get('etap2_model', 'gpt-4.1')
         use_async_mode = st.session_state.get('use_async', True)
+        skip_quality = st.session_state.get('analysis_mode', 'validation_only') == 'validation_only'
         
         # ====================================================================
         # KROK 0: MAPOWANIE INPUTU NA MODEL DANYCH
@@ -909,12 +910,15 @@ Okres: 25 lat
         # ====================================================================
         # KROK 1 i 2: ANALIZA DWUETAPOWA (ze zmapowanym profilem)
         # ====================================================================
-        spinner_text = f'🤖 ETAP 1: Walidacja WYMOGÓW [{etap1}] {"⚡ ASYNC" if use_async_mode else ""}...'
+        if skip_quality:
+            spinner_text = f'🤖 Walidacja WYMOGÓW [{etap1}] {"⚡ ASYNC" if use_async_mode else ""}...'
+        else:
+            spinner_text = f'🤖 ETAP 1: Walidacja WYMOGÓW [{etap1}] {"⚡ ASYNC" if use_async_mode else ""}...'
         
         with st.spinner(spinner_text):
             try:
-                # Pobierz strategię jakości z session state
-                quality_strategy = st.session_state.get('quality_strategy', 'individual')
+                # Pobierz strategię jakości z session state (tylko jeśli tryb pełny)
+                quality_strategy = st.session_state.get('quality_strategy', 'individual') if not skip_quality else 'individual'
                 
                 # Uruchom system V3 z orchestratorem (nowa architektura serwisów)
                 result = asyncio.run(
@@ -923,7 +927,8 @@ Okres: 25 lat
                         customer_profile=st.session_state.customer_profile,  # Zmapowany profil
                         etap1_model=etap1,
                         etap2_model=etap2,
-                        quality_strategy=quality_strategy  # Nowy parametr!
+                        quality_strategy=quality_strategy,
+                        skip_quality_scoring=skip_quality  # Nowy parametr!
                     )
                 )
                 
@@ -933,7 +938,8 @@ Okres: 25 lat
                     
                     if validation_json:
                         st.session_state.validation_result = validation_json
-                        st.session_state.ranking_result = result["stage2_ranking"]
+                        st.session_state.ranking_result = result.get("stage2_ranking")  # Może być None
+                        st.session_state.skip_quality_used = result.get("skip_quality_scoring", False)
                         
                         # Pobierz surowe dane z orchestratora
                         stage1_data = result.get("stage1_data", validation_json)
@@ -943,28 +949,21 @@ Okres: 25 lat
                         # Zapisz strategię do session_state, aby była dostępna w UI
                         st.session_state.used_quality_strategy = strategy
                         
-                        # Stwórz mapę quality scores po nazwie banku (obsługuje obie strategie)
+                        # Stwórz mapę quality scores po nazwie banku (tylko jeśli był ETAP 2)
                         quality_scores_map = {}
                         
-                        if strategy == "comparative":
+                        if stage2_data and strategy == "comparative":
                             # Nowa strategia: stage2_data = {"ranking": [...], "weights": {...}, "market_stats": {...}}
                             for score_dict in stage2_data.get("ranking", []):
                                 bank_name = score_dict.get("bank_name")
                                 if bank_name:
                                     quality_scores_map[bank_name] = score_dict
-                        else:
+                        elif stage2_data:
                             # Stara strategia: stage2_data = {"scores": [...]}
                             for score_dict in stage2_data.get("scores", []):
                                 bank_name = score_dict.get("bank_name")
                                 if bank_name:
                                     quality_scores_map[bank_name] = score_dict
-                        
-                        # DEBUG: Pokaż fragment rankingu w konsoli
-                        print("\n" + "="*80)
-                        print("🔍 FRAGMENT RANKINGU (pierwsze 500 znaków):")
-                        print("="*80)
-                        print(result["stage2_ranking"][:500])
-                        print("="*80 + "\n")
                         
                         # Wyciągnij listy banków
                         st.session_state.qualified_banks = []
@@ -973,13 +972,13 @@ Okres: 25 lat
                         for bank in stage1_data.get("qualified_banks", []):
                             bank_name = bank["bank_name"]
                             
-                            # Pobierz dane jakości bezpośrednio z stage2_data
+                            # Pobierz dane jakości bezpośrednio z stage2_data (jeśli był ETAP 2)
                             quality_data = quality_scores_map.get(bank_name, {})
                             
                             bank_info = {
                                 "name": bank_name,
                                 "status": "qualified",
-                                "score": quality_data.get("total_score", 0),
+                                "score": quality_data.get("total_score", None),  # None jeśli brak ETAP 2
                                 "category_breakdown": quality_data.get("breakdown", {}),
                                 "key_strengths": quality_data.get("kluczowe_atuty", quality_data.get("strengths", [])),
                                 "key_weaknesses": quality_data.get("punkty_uwagi", quality_data.get("weaknesses", [])),
@@ -1018,13 +1017,18 @@ Okres: 25 lat
                             }
                             st.session_state.disqualified_banks.append(bank_info)
                         
-                        # Sortuj qualified banki po score
-                        st.session_state.qualified_banks.sort(
-                            key=lambda x: x.get("score", 0) or 0, 
-                            reverse=True
-                        )
+                        # Sortuj qualified banki po score (jeśli był ETAP 2)
+                        if not skip_quality:
+                            st.session_state.qualified_banks.sort(
+                                key=lambda x: x.get("score", 0) or 0, 
+                                reverse=True
+                            )
                         
-                        st.success(f"✅ Analiza zakończona! Zakwalifikowane: {len(st.session_state.qualified_banks)}/11")
+                        # Komunikat sukcesu
+                        if skip_quality:
+                            st.success(f"✅ Walidacja zakończona! Zakwalifikowane: {len(st.session_state.qualified_banks)}/11")
+                        else:
+                            st.success(f"✅ Analiza zakończona! Zakwalifikowane: {len(st.session_state.qualified_banks)}/11")
                     else:
                         st.error("❌ Błąd parsowania wyników walidacji")
                 else:
@@ -1037,22 +1041,35 @@ Okres: 25 lat
 
 
 with col2:
-    st.markdown(f"### ✅ Pasujące oferty ({len(st.session_state.qualified_banks)}/11)")
+    # Tytuł dostosowany do trybu
+    skip_quality_mode = st.session_state.get('skip_quality_used', False)
+    
+    if skip_quality_mode:
+        st.markdown(f"### ✅ Zakwalifikowane banki ({len(st.session_state.qualified_banks)}/11)")
+        st.caption("*Spełniają wszystkie wymogi klienta*")
+    else:
+        st.markdown(f"### ✅ Pasujące oferty ({len(st.session_state.qualified_banks)}/11)")
+        st.caption("*Posortowane według oceny jakości*")
     
     if st.session_state.qualified_banks:
         for idx, bank_info in enumerate(st.session_state.qualified_banks):
             bank_name = bank_info["name"]
+            has_score = bank_info.get("score") is not None
             
-            # Emoji dla TOP 3
-            if idx == 0:
-                emoji = "🏆"
-                border_color = "#FFD700"  # Gold
-            elif idx == 1:
-                emoji = "🥈"
-                border_color = "#C0C0C0"  # Silver
-            elif idx == 2:
-                emoji = "🥉"
-                border_color = "#CD7F32"  # Bronze
+            # Emoji dla TOP 3 (tylko jeśli był scoring)
+            if has_score:
+                if idx == 0:
+                    emoji = "🏆"
+                    border_color = "#FFD700"  # Gold
+                elif idx == 1:
+                    emoji = "🥈"
+                    border_color = "#C0C0C0"  # Silver
+                elif idx == 2:
+                    emoji = "🥉"
+                    border_color = "#CD7F32"  # Bronze
+                else:
+                    emoji = "✅"
+                    border_color = "#4CAF50"  # Green
             else:
                 emoji = "✅"
                 border_color = "#4CAF50"  # Green
@@ -1069,8 +1086,8 @@ with col2:
                         st.markdown(f"### {emoji}")
                 
                 with cols[1]:
-                    # Nazwa i punktacja
-                    if bank_info.get("score"):
+                    # Nazwa i punktacja (jeśli dostępna)
+                    if has_score:
                         st.markdown(f"**{emoji} {bank_name}** - **{bank_info['score']}/100 pkt**")
                     else:
                         st.markdown(f"**{emoji} {bank_name}**")
@@ -1084,18 +1101,18 @@ with col2:
                     with st.popover("📊 Szczegóły", use_container_width=True):
                         st.markdown(f"### {bank_name}")
                         
-                        # ETAP 2: Punktacja jakości
-                        if bank_info.get("score"):
+                        # ETAP 2: Punktacja jakości (tylko jeśli dostępna)
+                        if has_score:
                             st.markdown("#### 🏅 ETAP 2: Ocena Jakości")
                             
                             # Punktacja końcowa z emoji
                             score = bank_info['score']
                             if score >= 80:
-                                emoji = "🌟"
+                                emoji_score = "🌟"
                             elif score >= 60:
-                                emoji = "✅"
+                                emoji_score = "✅"
                             else:
-                                emoji = "⚠️"
+                                emoji_score = "⚠️"
                             
                             # Pokaż punktację z percentylem (jeśli dostępny)
                             percentile = bank_info.get("percentile")
@@ -1105,11 +1122,11 @@ with col2:
                             if percentile is not None and used_strategy == "comparative":
                                 st.metric(
                                     "Punktacja końcowa", 
-                                    f"{score}/100 pkt {emoji}",
+                                    f"{score}/100 pkt {emoji_score}",
                                     delta=f"TOP {100-percentile:.0f}% (#{rank})"
                                 )
                             else:
-                                st.metric("Punktacja końcowa", f"{score}/100 pkt {emoji}")
+                                st.metric("Punktacja końcowa", f"{score}/100 pkt {emoji_score}")
                             
                             # Breakdown według kategorii
                             if bank_info.get("category_breakdown"):
@@ -1142,10 +1159,10 @@ with col2:
                             if bank_info.get("scoring_method"):
                                 with st.expander("🔍 Metodologia oceny"):
                                     st.caption(bank_info["scoring_method"])
+                            
+                            st.markdown("---")
                         
-                        st.markdown("---")
-                        
-                        # ETAP 1: Walidacja wymogów
+                        # ETAP 1: Walidacja wymogów (zawsze wyświetlane)
                         st.markdown("#### ✅ ETAP 1: Walidacja Wymogów")
                         sprawdzone = bank_info.get("sprawdzone_wymogi", [])
                         
@@ -1159,8 +1176,24 @@ with col2:
                             st.info("Brak szczegółowych danych walidacji")
     else:
         st.info("👈 Wprowadź profil klienta i kliknij 'Znajdź pasujące oferty'")
-        st.markdown("""
-        **System trzyetapowy analizuje:**
+        
+        # Komunikat dostosowany do trybu
+        if st.session_state.get('analysis_mode', 'validation_only') == 'validation_only':
+            st.markdown("""
+        **Tryb szybki (tylko walidacja):**
+        - ✅ Sprawdzenie wymogów eliminujących
+        - 📋 Lista zakwalifikowanych/odrzuconych banków
+        - ⚡ Szybka odpowiedź (3-5 sekund)
+        - 💰 Niższy koszt tokenów
+        
+        **Otrzymasz:**
+        - Listę banków spełniających wymogi
+        - Szczegółową walidację dla każdego banku
+        - Informacje o sprawdzonych parametrach
+        """)
+        else:
+            st.markdown("""
+        **Tryb pełny (walidacja + ocena jakości):**
         - ✅ **ETAP 1**: Walidacja WYMOGÓW (kwalifikacja/dyskwalifikacja)
         - 🏅 **ETAP 2**: Ranking JAKOŚCI (punktacja 0-100)
         - 🏆 **ETAP 3**: TOP 4 z pełnym raportem
@@ -1227,9 +1260,11 @@ with col3:
             st.info("Tutaj pojawią się banki odrzucone po analizie")
 
 # ============================================================================
-# RANKING TOP BANKÓW WEDŁUG JAKOŚCI (ETAP 2)
+# RANKING TOP BANKÓW WEDŁUG JAKOŚCI (ETAP 2) - tylko w trybie pełnym
 # ============================================================================
-if st.session_state.qualified_banks and st.session_state.ranking_result:
+skip_quality_mode = st.session_state.get('skip_quality_used', False)
+
+if st.session_state.qualified_banks and st.session_state.ranking_result and not skip_quality_mode:
     st.markdown("---")
     
     # Tytuł dostosowany do liczby banków
@@ -1353,6 +1388,44 @@ if st.session_state.qualified_banks and st.session_state.ranking_result:
 
 # Sidebar - informacje
 with st.sidebar:
+    st.markdown("### ⚙️ Tryb analizy")
+    
+    # NOWY: Wybór trybu analizy
+    analysis_mode = st.radio(
+        "Wybierz tryb analizy:",
+        options=["validation_only", "full_analysis"],
+        format_func=lambda x: {
+            "validation_only": "⚡ Tylko walidacja (szybki)",
+            "full_analysis": "🏆 Walidacja + Ocena jakości (pełny)"
+        }[x],
+        index=0,  # Domyślnie: tylko walidacja
+        help="""
+**⚡ Tylko walidacja (szybki):**
+- Sprawdza wymogi eliminujące
+- Lista zakwalifikowanych/odrzuconych banków
+- Szybka odpowiedź (3-5 sekund)
+- Jeden etap analizy
+
+**🏆 Walidacja + Ocena jakości (pełny):**
+- Sprawdza wymogi eliminujące
+- Scoring 19 parametrów jakościowych
+- Ranking TOP banków
+- Pełna analiza (8-12 sekund)
+- Dwa etapy analizy
+"""
+    )
+    
+    st.session_state.analysis_mode = analysis_mode
+    skip_quality = (analysis_mode == "validation_only")
+    
+    # Komunikat o wybranym trybie
+    if skip_quality:
+        st.info("⚡ **Tryb szybki:** Tylko walidacja wymogów")
+    else:
+        st.success("🏆 **Tryb pełny:** Walidacja + ocena jakości")
+    
+    st.markdown("---")
+    
     st.markdown("### 🤖 Konfiguracja modeli AI")
     
     # Dostępne modele
@@ -1381,18 +1454,19 @@ with st.sidebar:
         help="Model do walidacji parametrów eliminujących. Rekomendacja: gpt-4.1 lub o4-mini dla szybkości"
     )
     
-    # Wybór strategii dla ETAP 2 (nowe!)
-    st.markdown("#### 🏅 ETAP 2: Scoring JAKOŚCI")
-    
-    quality_strategy = st.radio(
-        "Strategia oceny jakości:",
-        options=["individual", "comparative"],
-        format_func=lambda x: {
-            "individual": "🔢 Indywidualna (każdy bank osobno)",
-            "comparative": "🏆 Porównawcza (benchmarking rynkowy)"
-        }[x],
-        index=1,  # domyślnie comparative
-        help="""
+    # Wybór strategii dla ETAP 2 (nowe!) - TYLKO w trybie pełnym
+    if not skip_quality:
+        st.markdown("#### 🏅 ETAP 2: Scoring JAKOŚCI")
+        
+        quality_strategy = st.radio(
+            "Strategia oceny jakości:",
+            options=["individual", "comparative"],
+            format_func=lambda x: {
+                "individual": "🔢 Indywidualna (każdy bank osobno)",
+                "comparative": "🏆 Porównawcza (benchmarking rynkowy)"
+            }[x],
+            index=1,  # domyślnie comparative
+            help="""
 **Indywidualna:** Każdy bank oceniany w izolacji (szybsze, ale brak kontekstu).
 
 **Porównawcza (NOWA!):** 
@@ -1402,15 +1476,19 @@ with st.sidebar:
 - Percentyle i przewagi konkurencyjne
 - 1 wywołanie LLM zamiast 11 (szybciej + taniej)
 """
-    )
-    
-    # Wybór modelu dla ETAP 2 (Ranking)
-    etap2_model = st.selectbox(
-        "Model do scoringu jakości:",
-        available_models,
-        index=0,  # domyślnie gpt-4.1
-        help="Model do rankingu parametrów jakościowych. Rekomendacja: gpt-4.1 dla najlepszej jakości"
-    )
+        )
+        
+        # Wybór modelu dla ETAP 2 (Ranking)
+        etap2_model = st.selectbox(
+            "Model do scoringu jakości:",
+            available_models,
+            index=0,  # domyślnie gpt-4.1
+            help="Model do rankingu parametrów jakościowych. Rekomendacja: gpt-4.1 dla najlepszej jakości"
+        )
+    else:
+        # Wartości domyślne gdy tryb szybki
+        quality_strategy = "individual"
+        etap2_model = "gpt-4.1"
     
     # Async mode toggle
     use_async = st.checkbox(
@@ -1430,25 +1508,55 @@ with st.sidebar:
     
     st.markdown("### ℹ️ O systemie")
     
-    st.markdown("""
-    **System Trzyetapowy v3.0**
+    # Komunikat dostosowany do wybranego trybu
+    current_mode = st.session_state.get('analysis_mode', 'validation_only')
     
-    � **ETAP 0: Mapowanie danych**
+    if current_mode == 'validation_only':
+        st.markdown("""
+    **System jednietapowy (szybki) v3.0**
+    
+    **ETAP 0: Mapowanie danych**
     - AI ekstraktuje dane z inputu
     - Strukturyzacja do modelu
     - Walidacja kompletności
     
-    �🔍 **ETAP 1: Walidacja WYMOGÓW**
+    **ETAP 1: Walidacja WYMOGÓW**
+    - Sprawdza tylko podane parametry
+    - Precyzyjna kwalifikacja/dyskwalifikacja
+    - Jasne uzasadnienia
+    - Lista zakwalifikowanych banków
+    
+    **Zalety trybu szybkiego:**
+    - Szybka odpowiedź (3-5s)
+    - Niższy koszt tokenów
+    - Wystarczający dla wstępnej selekcji
+    
+    **Baza wiedzy:**
+    - 11 banków
+    - 87 parametrów/bank
+    - Inteligentne dopasowanie
+    """)
+    else:
+        st.markdown("""
+    **System trzyetapowy (pełny) v3.0**
+    
+    **ETAP 0: Mapowanie danych**
+    - AI ekstraktuje dane z inputu
+    - Strukturyzacja do modelu
+    - Walidacja kompletności
+    
+    **ETAP 1: Walidacja WYMOGÓW**
     - Sprawdza tylko podane parametry
     - Precyzyjna kwalifikacja
     - Jasne uzasadnienia
     
-    🏅 **ETAP 2: Ranking JAKOŚCI**
+    **ETAP 2: Ranking JAKOŚCI**
     - Punktacja tylko dla podanych cech
     - Scoring 0-100
+    - Dynamiczne wagi
     - TOP 4 rekomendacje
     
-    📊 **Baza wiedzy:**
+    **Baza wiedzy:**
     - 11 banków
     - 87 parametrów/bank
     - Inteligentne dopasowanie
